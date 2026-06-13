@@ -19,8 +19,9 @@ sleep 6
 echo ">> [3/4] Pulling qwen2.5:72b (~47GB, 10-15 min the first time)..."
 ollama pull qwen2.5:72b
 
-echo ">> [4/4] Pointing Forge at it and running HumanEval (40 problems)..."
-pip install -q requests pyyaml
+echo ">> [4/4] Pointing Forge at it and running HumanEval (FULL 164 problems)..."
+# install common libs so a correct scipy/numpy solution isn't falsely failed (flaw #3)
+pip install -q requests pyyaml numpy scipy pandas sympy networkx
 python - <<'PY'
 import pathlib, yaml
 p = pathlib.Path("config/forge.yaml")
@@ -32,7 +33,7 @@ p.write_text(yaml.safe_dump(c))
 print("config -> qwen2.5:72b via Ollama")
 PY
 
-python -m bench.humaneval --limit 40 --mode raw
+python -m bench.humaneval --limit 164 --mode raw
 
 echo ""
 echo "================================================================"

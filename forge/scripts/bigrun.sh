@@ -4,7 +4,11 @@
 # the served model. One command:  bash scripts/bigrun.sh
 set -uo pipefail
 
-LIM="${1:-40}"   # problems per benchmark
+LIM="${1:-164}"   # problems per benchmark (default: full HumanEval set — fixes flaw #3 noise)
+
+echo ">> Installing common libs so correct solutions aren't failed by a missing package"
+echo "   (fixes flaw #3: the scipy false-fail)..."
+pip install -q numpy scipy pandas sympy networkx 2>/dev/null || true
 
 echo "############ MBPP (standard, $LIM) ############"
 python -m bench.mbpp --limit "$LIM" --mode raw || true
