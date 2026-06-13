@@ -50,6 +50,14 @@ def load() -> dict[str, Any]:
             cfg = _deep_merge(DEFAULTS, yaml.safe_load(CONFIG_PATH.read_text(encoding="utf-8")) or {})
     except Exception:
         pass  # any failure -> safe defaults
+
+    # Env overrides — the easy way to point at a RENTED GPU without editing files:
+    #   FORGE_HOST=http://<rented-box>:11434  FORGE_MODEL=llama3.1:70b
+    import os
+    if os.environ.get("FORGE_HOST"):
+        cfg = _deep_merge(cfg, {"engine": {"host": os.environ["FORGE_HOST"]}})
+    if os.environ.get("FORGE_MODEL"):
+        cfg = _deep_merge(cfg, {"engine": {"model": os.environ["FORGE_MODEL"]}})
     _cache = cfg
     return cfg
 

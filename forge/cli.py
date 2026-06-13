@@ -36,6 +36,34 @@ def cmd_chat(model: str | None):
         print(f"forge> {res.answer}\n  ({len(res.steps)} steps, stop={res.stopped_reason})\n")
 
 
+def cmd_ping(model: str | None):
+    """Verify the configured backend (local OR rented remote) is reachable and works."""
+    import time
+    import requests
+    from forge.config import get
+    from forge.backend import get_backend, GenConfig, Message
+
+    host = get("engine.host")
+    print(f"Backend host: {host}")
+    print(f"Model:        {model or get('engine.model')}")
+    try:
+        tags = requests.get(f"{host.rstrip('/')}/api/tags", timeout=10).json()
+        names = [m.get("name") for m in tags.get("models", [])]
+        print(f"Reachable [OK]  ({len(names)} models available: {', '.join(names[:6])})")
+    except Exception as e:
+        print(f"NOT reachable [FAIL]  {type(e).__name__}: {e}")
+        print("  - is the box on? is Ollama serving on that host:port? is the port exposed?")
+        return
+    try:
+        t0 = time.time()
+        out = get_backend(model).chat([Message("user", "Reply with the single word: ok")],
+                                      GenConfig(max_tokens=8))
+        print(f"Generation [OK]  ({time.time()-t0:.1f}s)  -> {out.strip()[:40]!r}")
+        print("\nForge is ready to use this backend. Everything (tools, bench, agent) runs on it.")
+    except Exception as e:
+        print(f"Generation [FAIL]  {type(e).__name__}: {e}")
+
+
 def cmd_solve(task: str, model: str | None):
     from forge import trace
     agent = Agent(get_backend(model))
@@ -73,6 +101,8 @@ def main():
     elif args[0] == "inspect":
         from forge import trace
         print(trace.render(trace.latest()))
+    elif args[0] == "ping":
+        cmd_ping(model)
     else:
         print(__doc__)
 
