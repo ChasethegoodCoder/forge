@@ -8,6 +8,21 @@ Living document. Each benchmark run mines failures into prioritized work. Newest
 | 1 | 2026-06-13 | qwen2.5:7b | 63.6% | first baseline; eval-extraction bug undercounted coding |
 | 2 | 2026-06-13 | qwen2.5:7b | **81.8%** | fixed judge `_extract_code` (literal `\n` escapes) → coding 50%→100% |
 
+## HumanEval (standard benchmark, vs Sonnet 4.6 = 92% pass@1)
+| Date | Mode | pass@1 | Time | Notes |
+|---|---|---:|---:|---|
+| 2026-06-13 | agent (full harness) | **80.0%** | 728s | n=20; gap 12 pts to target |
+| 2026-06-13 | raw (single-pass) | **80.0%** | 66s | n=20; same score, **11× faster** |
+
+### ⭐ Key finding (run this honestly): the harness does NOT help on HumanEval
+Raw and agent score identically (80%), but the harness is 11× slower. Conclusion:
+**single-function problems don't exercise what the harness is for** (planning, multi-file,
+tools, memory). The raw 7B already solves them. This is not a harness failure — it's a
+benchmark-coverage gap.
+**Implication:** to *measure* harness value we need harder, multi-step / multi-file
+tasks (P15, SWE-bench-style). Until then, use `--mode raw` for fast coding baselines.
+The 3 agent-mode-only failures were budget/over-working artifacts the raw mode avoids.
+
 ## Findings from run #2
 **Successes**
 - Coding suite 100% (5/5). Qwen2.5-7B writes correct functions reliably.

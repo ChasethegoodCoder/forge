@@ -36,13 +36,18 @@ Every item you listed, mapped to a phase and its current status.
 | 23 | Autonomous improvement suggestions | [~] | P10 | manual `PHASE9_IMPROVEMENT_QUEUE.md`; auto TODO |
 | 24 | Human-in-the-loop review | [~] | P12 | you approve via git; no formal gate yet |
 
-**Tally (updated this iteration): 12 done · 7 partial · 5 not started** — up from
-9/8/7. Newly DONE: self-critique (#12), memory (#17, semantic), tool integration
-(#18, +web+edit/grep/glob), eval auto-scoring hardened (#7). Newly PARTIAL→progressed:
-agent system (#16, coder+critic), config/observability.
+**Tally (updated): 14 done · 8 scaffolded/partial · 2 not started** — up from 9/8/7
+at start. Newly DONE: self-critique (#12), memory (#17, semantic), tool integration
+(#18), eval hardened (#7). Newly SCAFFOLDED & unit-tested (run when GPU committed):
+dataset factory (#10, `forge/factory/`), data accumulation (#14, GoldStore),
+fine-tuning (#15, `forge/train/qlora.py`).
 
-Remaining NOT STARTED (5): dataset factory (#10), data accumulation (#14),
-fine-tuning (#15), continuous retraining (#21), research mode (#22).
+Remaining NOT STARTED (2): continuous retraining (#21), research mode (#22) — both
+depend on the factory+training loop existing first, which it now does.
+
+> Honest note from measurement: on HumanEval the harness ties the raw model (80%/80%)
+> — the harness's value needs harder multi-file tasks (P15) to show. See
+> PHASE9_IMPROVEMENT_QUEUE.md. **Standing benchmark number: 80% pass@1 vs target 92%.**
 
 ---
 
