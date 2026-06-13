@@ -39,6 +39,21 @@ def cmd_chat(model: str | None):
         print(f"forge {tag}> {reply}\n")
 
 
+COMMANDS = """Forge commands:
+  chat [--project <dir>]        talk to Forge (chats + codes; works on a real folder)
+  build "<task>"                build a multi-file project (asks if ambiguous)
+  solve "<task>"                one-shot agent run, shows steps + saves a trace
+  image <path> "<question>"     ask the vision model about an image
+  asset "<prompt>" <out.png>    generate art locally (Stable Diffusion); --transparent
+  bench | humaneval | report    run benchmarks / see progress
+  ping                          check the engine (local or rented) is reachable
+  inspect                       replay the last solve's step trace
+  help                          this list
+
+Flags: --model <name>  --project <dir>
+Config: config/forge.yaml (model, vision_model, image_model, big_model for escalation)"""
+
+
 def cmd_ping(model: str | None):
     """Verify the configured backend (local OR rented remote) is reachable and works."""
     import time
@@ -141,6 +156,8 @@ def main():
     elif args[0] == "inspect":
         from forge import trace
         print(trace.render(trace.latest()))
+    elif args[0] in ("help", "commands", "--help", "-h"):
+        print(COMMANDS)
     elif args[0] == "ping":
         cmd_ping(model)
     elif args[0] == "image":

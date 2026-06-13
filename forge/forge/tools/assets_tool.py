@@ -26,3 +26,36 @@ def generate_asset(prompt: str, path: str, transparent: bool = False) -> str:
                             model=get("engine.image_model", "stabilityai/sd-turbo"),
                             transparent=transparent)
     return f"asset saved: {result}" if not result.startswith("ERROR") else result
+
+
+@tool(
+    description=(
+        "Download an asset (image/font/sound/zip) from a URL into the project. Use for "
+        "free game assets (e.g. Kenney.nl CC0 packs, OpenGameArt) when art is needed and "
+        "code-drawn shapes won't do. Only use direct file URLs."
+    ),
+    parameters={
+        "url": {"type": "string", "description": "direct URL to the file"},
+        "path": {"type": "string", "description": "relative save path in workspace, e.g. 'assets/player.png'"},
+    },
+)
+def download_asset(url: str, path: str) -> str:
+    import requests
+    from .files import _safe
+    if not url.lower().startswith(("http://", "https://")):
+        return "ERROR: url must start with http:// or https://"
+    try:
+        r = requests.get(url, timeout=30, stream=True)
+        r.raise_for_status()
+        out = _safe(path)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        size = 0
+        with out.open("wb") as f:
+            for chunk in r.iter_content(8192):
+                f.write(chunk)
+                size += len(chunk)
+                if size > 50_000_000:  # 50MB cap
+                    break
+        return f"downloaded {size} bytes -> {path}"
+    except Exception as e:
+        return f"ERROR downloading: {type(e).__name__}: {e}"
