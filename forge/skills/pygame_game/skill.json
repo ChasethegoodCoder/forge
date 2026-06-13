@@ -1,0 +1,6 @@
+{
+  "name": "pygame_game",
+  "triggers": ["pygame", "geometry dash", "platformer", "side.?scroll", "2d game", "arcade game", "jump.*game", "game from scratch"],
+  "description": "A working pygame side-scroller skeleton: window, game loop, clock, a Player cube with gravity + jump, ground, and a scrolling grid. RUNS as-is. The model only fills in obstacles, collision, and scoring — it never invents the engine.",
+  "scaffold": ["game.py"]
+}

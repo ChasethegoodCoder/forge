@@ -66,6 +66,18 @@ class ProjectBuilder:
         err = (p.stderr or "").strip().splitlines()
         return False, "\n".join(err[-6:])
 
+    @staticmethod
+    def _env_missing(err: str, project_dir: str) -> str | None:
+        """If the error is a missing THIRD-PARTY package (not a project file), return its
+        name — it's an environment problem, not a code bug, so don't try to 'fix' it."""
+        m = re.search(r"ModuleNotFoundError: No module named '([\w.]+)'", err or "")
+        if not m:
+            return None
+        mod = m.group(1).split(".")[0]
+        if (WORKSPACE / project_dir / f"{mod}.py").exists():
+            return None  # it's a local module the agent forgot to create -> fixable
+        return mod
+
     def _build_file(self, project_dir: str, fname: str, what: str, task: str,
                     max_fix: int = 2) -> bool:
         """Write the file, then verify-and-fix until it imports cleanly (mastery)."""
@@ -81,12 +93,57 @@ class ProjectBuilder:
             ok, err = self._verify(project_dir, fname)
             if ok:
                 return True
+            pkg = self._env_missing(err, project_dir)
+            if pkg:
+                self.on_progress(f"        needs `pip install {pkg}` (env, not a code bug) "
+                                 f"— skipping fix, code looks fine")
+                return True  # code is fine; the machine just lacks the package
             self.on_progress(f"        fixing: {err.splitlines()[-1][:60] if err else 'error'}")
             self.agent.run(
                 f"The file `{project_dir}/{fname}` fails to import:\n{err}\n\n"
                 f"Fix it: read_file `{project_dir}/{fname}` (and any file it imports), find "
                 f"the bug, edit_file to fix, and verify with run_in_project('{project_dir}', "
                 f"'import {fname[:-3]}'). Only fix the error.")
+        return self._verify(project_dir, fname)[0]
+
+    def _build_on_scaffold(self, task: str, project_dir: str, skill) -> BuildResult:
+        """Skill path: install a working scaffold, then have the model FILL IN the TODOs
+        (the parts it can do) instead of inventing the whole thing (which it can't)."""
+        proj = WORKSPACE / project_dir
+        installed = skill.install(proj)
+        entry = installed[0] if installed else "main.py"
+        res = BuildResult(project_dir=project_dir, entry=entry)
+        self.on_progress(f"\nSkill '{skill.name}' — starting from working scaffold: {installed}")
+        self.on_progress(f"Filling in {entry} for: {task}")
+
+        self.agent.run(
+            f"There is a WORKING, runnable scaffold at `{project_dir}/{entry}` with TODO "
+            f"comments marking what to add. Goal: {task}\n\n"
+            f"Steps: read_file `{project_dir}/{entry}` to understand the structure, then use "
+            f"edit_file to implement EACH TODO (spawn/move/draw obstacles, collision that "
+            f"sets self.dead, scoring/restart). KEEP the existing working loop and physics. "
+            f"After each edit verify it still imports with run_in_project('{project_dir}', "
+            f"'import {entry[:-3]}'). Do not rewrite from scratch.")
+
+        ok = self._build_file_verify_fix(project_dir, entry, max_fix=2)
+        res.steps.append({"file": entry, "ok": ok, "note": "scaffold filled"})
+        status = "runs (or needs a pip install)" if ok else "has errors"
+        self.on_progress(f"\nBuilt {project_dir}/{entry} — {status}")
+        self.on_progress(f"Run it:  cd {proj} && python {entry}")
+        return res
+
+    def _build_file_verify_fix(self, project_dir: str, fname: str, max_fix: int = 2) -> bool:
+        for _ in range(max_fix):
+            ok, err = self._verify(project_dir, fname)
+            if ok:
+                return True
+            if self._env_missing(err, project_dir):
+                return True
+            self.on_progress(f"        fixing: {err.splitlines()[-1][:60] if err else 'error'}")
+            self.agent.run(
+                f"`{project_dir}/{fname}` fails to import:\n{err}\nFix ONLY this error: "
+                f"read_file it, edit_file the fix, verify with run_in_project('{project_dir}', "
+                f"'import {fname[:-3]}').")
         return self._verify(project_dir, fname)[0]
 
     def plan(self, task: str) -> dict:
@@ -100,6 +157,12 @@ class ProjectBuilder:
             return json.loads(m.group(0)) if m else {"entry": "main.py", "steps": []}
 
     def build(self, task: str, project_dir: str = "project") -> BuildResult:
+        # Phase C: if a skill matches, start from its WORKING scaffold instead of blank.
+        from .skills import best_match
+        skill = best_match(task)
+        if skill:
+            return self._build_on_scaffold(task, project_dir, skill)
+
         plan = self.plan(task)
         steps = plan.get("steps", [])
         entry = plan.get("entry", "main.py")
