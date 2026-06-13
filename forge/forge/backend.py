@@ -25,6 +25,8 @@ class Message:
     content: str
     # for tool results we keep the name so the model knows which call this answers
     name: str | None = None
+    # base64-encoded images (vision models only, e.g. llava / llama3.2-vision)
+    images: list[str] | None = None
 
 
 @dataclass
@@ -63,7 +65,10 @@ class OllamaBackend(Backend):
         payload: dict[str, Any] = {
             "model": self.model,
             "stream": stream,
-            "messages": [{"role": m.role, "content": m.content} for m in messages],
+            "messages": [
+                {"role": m.role, "content": m.content,
+                 **({"images": m.images} if m.images else {})}
+                for m in messages],
             "options": {
                 "temperature": cfg.temperature,
                 "top_p": cfg.top_p,

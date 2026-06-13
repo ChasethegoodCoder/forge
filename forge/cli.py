@@ -71,6 +71,29 @@ def cmd_ping(model: str | None):
         print(f"Generation [FAIL]  {type(e).__name__}: {e}")
 
 
+def cmd_image(path: str, question: str, model: str | None):
+    """Ask a VISION model about an image. Needs a vision model pulled (e.g. llava:7b).
+    Usage: python cli.py image photo.png "what's in this picture?" """
+    import base64
+    from pathlib import Path
+    from forge.backend import OllamaBackend, GenConfig, Message
+    from forge.config import get
+
+    p = Path(path).expanduser()
+    if not p.exists():
+        print(f"No such image: {p}")
+        return
+    vmodel = model or get("engine.vision_model", "llava:7b")
+    b64 = base64.b64encode(p.read_bytes()).decode()
+    print(f"[vision] {vmodel} looking at {p.name}...")
+    be = OllamaBackend(model=vmodel, host=get("engine.host", "http://localhost:11434"))
+    try:
+        out = be.chat([Message("user", question, images=[b64])], GenConfig(max_tokens=600))
+        print(f"\n{out.strip()}")
+    except Exception as e:
+        print(f"Error: {e}\n(Pull a vision model first:  ollama pull {vmodel})")
+
+
 def cmd_solve(task: str, model: str | None):
     from forge import trace
     agent = Agent(get_backend(model))
@@ -120,9 +143,19 @@ def main():
         print(trace.render(trace.latest()))
     elif args[0] == "ping":
         cmd_ping(model)
+    elif args[0] == "image":
+        cmd_image(args[1], " ".join(args[2:]) or "Describe this image.", model)
     elif args[0] == "build":
         from forge.builder import ProjectBuilder
-        ProjectBuilder(get_backend(model)).build(" ".join(args[1:]))
+        from forge import clarify
+        be = get_backend(model)
+        task = " ".join(args[1:])
+        q = clarify.ask(be, task)              # ask like I do, if ambiguous
+        if q:
+            choice = clarify.prompt_cli(q)
+            if choice:
+                task = f"{task} ({q['question']} -> {choice})"
+        ProjectBuilder(be).build(task)
     elif args[0] == "dashboard":
         from bench.dashboard import main as dash_main
         dash_main()
