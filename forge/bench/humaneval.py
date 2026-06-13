@@ -95,40 +95,7 @@ def _repair_escapes(code: str) -> str:
     return code
 
 
-def _clean_source(candidates: list[str], entry: str) -> str:
-    """Normalize messy model output into clean, compilable source.
-
-    For each candidate (raw and escape-repaired), parse with ast and keep ONLY
-    top-level imports, function/class defs, and simple assignments — dropping
-    duplicate bodies, stray test calls, and self-referential `import solution`.
-    Return the first variant whose definitions include `entry`. This is robust to
-    nearly anything a small model emits, because we rebuild from the AST.
-    """
-    import ast
-    KEEP = (ast.Import, ast.ImportFrom, ast.FunctionDef, ast.AsyncFunctionDef,
-            ast.ClassDef, ast.Assign)
-    for raw in candidates:
-        if not raw or not raw.strip():
-            continue
-        for variant in (raw, _repair_escapes(raw)):
-            try:
-                tree = ast.parse(variant)
-            except SyntaxError:
-                continue
-            body, names = [], set()
-            for node in tree.body:
-                if isinstance(node, (ast.Import, ast.ImportFrom)):
-                    mods = [a.name for a in node.names]
-                    if "solution" in mods or getattr(node, "module", "") == "solution":
-                        continue  # drop self-import
-                    body.append(node)
-                elif isinstance(node, KEEP):
-                    body.append(node)
-                    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-                        names.add(node.name)
-            if entry in names:
-                return ast.unparse(ast.Module(body=body, type_ignores=[]))
-    return ""
+from bench.judge import clean_source as _clean_source  # shared robust scorer
 
 
 def solve_once(agent, problem: dict) -> tuple[bool, str, str]:

@@ -64,6 +64,38 @@ def _pick_source(answer: str, entry: str, extra_code: list[str]) -> str:
     return final_code
 
 
+def clean_source(candidates: list[str], entry: str) -> str:
+    """AST-normalize messy model output into clean, compilable source defining
+    `entry`. Keeps only imports + defs + assigns; drops duplicate bodies, stray
+    statements, and self-imports. The robust scorer used by ALL code tasks. Returns
+    "" if no candidate (raw or escape-repaired) parses and defines entry."""
+    import ast
+    KEEP = (ast.Import, ast.ImportFrom, ast.FunctionDef, ast.AsyncFunctionDef,
+            ast.ClassDef, ast.Assign)
+    for raw in candidates:
+        if not raw or not raw.strip():
+            continue
+        for variant in (raw, _repair(raw)):
+            try:
+                tree = ast.parse(variant)
+            except SyntaxError:
+                continue
+            body, names = [], set()
+            for node in tree.body:
+                if isinstance(node, (ast.Import, ast.ImportFrom)):
+                    mods = [a.name for a in node.names]
+                    if "solution" in mods or getattr(node, "module", "") == "solution":
+                        continue
+                    body.append(node)
+                elif isinstance(node, KEEP):
+                    body.append(node)
+                    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                        names.add(node.name)
+            if entry in names:
+                return ast.unparse(ast.Module(body=body, type_ignores=[]))
+    return ""
+
+
 def score_one(answer: str, spec: dict, extra_code: list[str] | None = None) -> tuple[float, str]:
     """Return (score in [0,1], note). `extra_code` is code the agent executed
     during the run, used as a fallback source for code_test scoring."""
@@ -83,7 +115,12 @@ def score_one(answer: str, spec: dict, extra_code: list[str] | None = None) -> t
         return (1.0 if _norm(str(spec["expected"])) in _norm(answer) else 0.0), ""
 
     if t == "code_test":
-        code = _pick_source(answer, spec.get("entry", ""), extra_code or [])
+        entry = spec.get("entry", "")
+        # robust: AST-normalize final answer + executed snippets into clean source
+        candidates = [_extract_code(answer)] + (extra_code or [])
+        code = clean_source(candidates, entry)
+        if not code:
+            return 0.0, f"no compilable solution defining {entry}"
         harness = f"{code}\n\n{spec['tests']}\nprint('ALL_TESTS_PASSED')\n"
         with tempfile.TemporaryDirectory() as d:
             f = Path(d) / "t.py"
