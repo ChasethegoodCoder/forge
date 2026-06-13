@@ -1,0 +1,1 @@
+{"ts": "2026-06-13T17:43:37.783610+00:00", "bench": "MBPP", "model": "ollama:qwen2.5:7b-instruct", "mode": "raw", "n": 3, "pass1": 1.0, "elapsed_s": 12.5, "rows": [{"id": 2, "pass": 1, "secs": 6.7}, {"id": 3, "pass": 1, "secs": 2.9}, {"id": 4, "pass": 1, "secs": 2.8}]}
