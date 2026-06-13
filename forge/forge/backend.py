@@ -85,6 +85,16 @@ class OllamaBackend(Backend):
         r.raise_for_status()
         return r.json()["message"]["content"]
 
+    def embed(self, text: str, model: str = "nomic-embed-text") -> list[float]:
+        """Local embeddings via Ollama (for semantic memory). No extra ML deps."""
+        r = requests.post(
+            f"{self.host}/api/embeddings",
+            json={"model": model, "prompt": text},
+            timeout=120,
+        )
+        r.raise_for_status()
+        return r.json()["embedding"]
+
     def stream(self, messages: list[Message], cfg: GenConfig) -> Iterator[str]:
         with requests.post(
             f"{self.host}/api/chat",

@@ -232,11 +232,17 @@ Goal: replicate the *harness* (not the weights) that makes Claude Code strong.
 | Multi-agent roles | `Orchestrator`: coder + critic + 1 revision (planner next) | P9 | [~] |
 | Measurable critic | HumanEval `--critic` flag for A/B vs single-pass | P16 | [x] |
 
-**Now 9 agent tools** (was 5): read/write/list/edit + grep/glob + python/shell + plan.
+**Now 11 agent tools** (was 5): read/write/list/edit + grep/glob + python/shell +
+plan + web_search/web_fetch.
 
-Still missing from the Claude-Code harness (next): web search/fetch (P18), full
-planner role + subagent parallelism (P9), semantic memory (P5), repo-map &
-SWE-bench-style multi-file tasks (P15), diff-based patches across many files.
+| Ported capability | Forge implementation | Phase | Status |
+|---|---|:--:|:--:|
+| Web research | `web_search` + `web_fetch` (DuckDuckGo, no key) | P18 | [x] |
+| Semantic memory | `SemanticMemory` (Ollama embeddings + cosine, local) | P5 | [x] |
+
+Still missing from the Claude-Code harness (next): wire semantic memory + web into the
+agent loop by default; full planner role + subagent parallelism (P9); repo-map &
+SWE-bench-style multi-file tasks (P15).
 
 **Verification owed:** run `python cli.py humaneval --limit 20 --critic` and compare
 pass@1 to the single-pass baseline. Keep the critic only if the number rises.

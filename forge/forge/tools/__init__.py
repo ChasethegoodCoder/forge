@@ -49,7 +49,7 @@ def tool(description: str, parameters: dict[str, Any], dangerous: bool = False):
 
 def load_all() -> dict[str, Tool]:
     """Import tool modules so their decorators register. Returns the registry."""
-    from . import files, shell, python_exec, code, planning  # noqa: F401
+    from . import files, shell, python_exec, code, planning, web  # noqa: F401
     return REGISTRY
 
 
