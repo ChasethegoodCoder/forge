@@ -1,0 +1,15 @@
+# Forge configuration. Plain YAML so you can see and change everything.
+engine:
+  backend: ollama
+  model: qwen2.5:7b-instruct      # swap to qwen2.5:14b-instruct-q4_K_M for more power
+  host: http://localhost:11434
+  temperature: 0.2
+  num_ctx: 8192
+
+agent:
+  max_steps: 8
+  auto_approve_dangerous: false   # shell tool asks before running
+
+bench:
+  suites: [reasoning, coding]
+  max_steps: 8

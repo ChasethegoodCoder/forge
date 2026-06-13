@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+workspace/
+memory/store.json
+.venv/
+venv/
+*.gguf
