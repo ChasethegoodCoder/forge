@@ -103,6 +103,9 @@ def main():
         print(trace.render(trace.latest()))
     elif args[0] == "ping":
         cmd_ping(model)
+    elif args[0] == "dashboard":
+        from bench.dashboard import main as dash_main
+        dash_main()
     else:
         print(__doc__)
 

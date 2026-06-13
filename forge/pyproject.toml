@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "project-forge"
+version = "0.1.0"
+description = "Local-first agentic coding system climbing toward Sonnet-4.6-level task performance"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = ["requests>=2.31.0", "pyyaml>=6.0"]
+
+[project.optional-dependencies]
+# semantic memory
+memory = ["chromadb>=0.5.0", "sentence-transformers>=3.0.0"]
+# local fine-tuning on the RTX 4070 (QLoRA)
+train = ["torch>=2.3.0", "transformers>=4.44.0", "peft>=0.12.0", "trl>=0.9.0",
+         "bitsandbytes>=0.43.0", "accelerate>=0.31.0", "datasets>=2.20.0",
+         "hf_transfer>=0.1.0"]
+
+[project.scripts]
+forge = "cli:main"
+
+[tool.setuptools]
+py-modules = ["cli"]
+packages = ["forge", "forge.tools", "forge.factory", "forge.train", "bench"]
