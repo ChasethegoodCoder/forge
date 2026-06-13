@@ -4,6 +4,8 @@ workspace/
 memory/store.json
 memory/vectors.json
 bench/results/traces/
+data/train/
+adapters/
 .venv/
 venv/
 *.gguf

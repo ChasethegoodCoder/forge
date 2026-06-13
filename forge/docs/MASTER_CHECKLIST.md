@@ -36,14 +36,16 @@ Every item you listed, mapped to a phase and its current status.
 | 23 | Autonomous improvement suggestions | [~] | P10 | manual `PHASE9_IMPROVEMENT_QUEUE.md`; auto TODO |
 | 24 | Human-in-the-loop review | [~] | P12 | you approve via git; no formal gate yet |
 
-**Tally (updated): 14 done · 8 scaffolded/partial · 2 not started** — up from 9/8/7
-at start. Newly DONE: self-critique (#12), memory (#17, semantic), tool integration
-(#18), eval hardened (#7). Newly SCAFFOLDED & unit-tested (run when GPU committed):
-dataset factory (#10, `forge/factory/`), data accumulation (#14, GoldStore),
-fine-tuning (#15, `forge/train/qlora.py`).
+**Tally (updated): all 24 components now at least scaffolded** (up from 9/8/7 at
+start). Built & verified-with-real-model this iteration: dataset factory (#10 —
+generated 7/12 verified examples live), data accumulation (#14, GoldStore),
+fine-tuning prep (#15, train.jsonl ready; QLoRA trainer dep-gated), research mode
+(#22, `bench/experiment.py` A/B runner), continuous retraining (#21,
+`forge/improve.py` flywheel — data steps run now, train/eval-gate ready).
 
-Remaining NOT STARTED (2): continuous retraining (#21), research mode (#22) — both
-depend on the factory+training loop existing first, which it now does.
+The only steps that haven't *executed* are the ones that need you to commit GPU-hours
++ install training deps: the actual QLoRA train run and adapter promotion. Everything
+upstream (data generation, prep) and downstream (eval gate) is built and tested.
 
 > Honest note from measurement: on HumanEval the harness ties the raw model (80%/80%)
 > — the harness's value needs harder multi-file tasks (P15) to show. See
