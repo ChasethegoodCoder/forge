@@ -35,6 +35,22 @@ The 3 agent-mode-only failures were budget/over-working artifacts the raw mode a
 **Process finding**
 - The benchmark caught a crash (bare-int action) AND a silent scoring bug (escaped newlines). *The measurement layer needs hardening as much as the model* — a noisy ruler hides real progress.
 
+## ⭐ Trustworthy 42-task scoreboard (2026-06-13, fixed judge, all 4 suites)
+| Suite | Score | Read |
+|---|---:|---|
+| reasoning | 100% | maxed — easy for 7B |
+| coding | 100% | maxed — easy for 7B |
+| writing | 72.9% | LLM-judge rubric; decent |
+| **agent (hard multi-step)** | **37.5%** | **the real frontier** |
+| **Overall** | **82.9%** | — |
+
+**The signal:** easy suites are saturated; the **Agent suite (classes, roman numerals,
+intervals, balanced-parens) is where the 7B actually struggles (37.5%)**. Failures were
+genuine: incomplete class methods, wrong logic, non-compiling solutions. THIS is the
+suite to optimize — bigger models, fine-tuning, and the critic should show value here
+(HumanEval/easy suites are too saturated to move). All future effort targets the agent
+suite + RepoBench, not the maxed suites.
+
 ## Prioritized queue
 | P | Type | Task | Rationale | Target axis |
 |--:|---|---|---|---|
