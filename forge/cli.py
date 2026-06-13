@@ -106,6 +106,9 @@ def main():
     elif args[0] == "dashboard":
         from bench.dashboard import main as dash_main
         dash_main()
+    elif args[0] == "suggest":
+        from forge.suggest import main as suggest_main
+        suggest_main()
     else:
         print(__doc__)
 

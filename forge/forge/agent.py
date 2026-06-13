@@ -102,18 +102,36 @@ def _parse_action(text: str) -> dict:
 class Agent:
     def __init__(self, backend: Backend, max_steps: int = 8,
                  cfg: GenConfig | None = None, auto_approve: bool = True,
-                 self_verify: bool = True):
+                 self_verify: bool = True, use_memory: bool = False):
         self.backend = backend
         self.max_steps = max_steps
         # low temp: deterministic code; json_mode: force valid, properly-escaped actions
         self.cfg = cfg or GenConfig(temperature=0.1, json_mode=True)
         self.auto_approve = auto_approve
         self.self_verify = self_verify
+        self.use_memory = use_memory
+        self._mem = None  # lazy SemanticMemory (needs embeddings)
         toolkit.load_all()
+
+    def _memory(self):
+        if self._mem is None:
+            from .semantic_memory import SemanticMemory
+            self._mem = SemanticMemory()
+        return self._mem
 
     def run(self, task: str, system_extra: str = "") -> RunResult:
         from .tools.planning import reset_plan
         reset_plan()  # fresh plan per run
+
+        # P5: recall semantically-relevant past solutions and inject as hints
+        if self.use_memory:
+            try:
+                hits = self._memory().search(task, k=2)
+                if hits:
+                    recalled = "\n".join(f"- {h['text'][:300]}" for h in hits)
+                    system_extra += f"\n\nRelevant past solutions (may help):\n{recalled}"
+            except Exception:
+                pass  # memory is best-effort; never break the run
 
         system = SYSTEM_TEMPLATE.format(tool_docs=_tool_docs())
         if system_extra:
@@ -146,6 +164,13 @@ class Agent:
                 result.answer = answer
                 result.stopped_reason = "final"
                 result.steps.append(Step(action.get("thought", ""), "final", {}, ""))
+                # P5: remember verified solutions for future recall
+                if self.use_memory and ran_code:
+                    try:
+                        self._memory().add(f"Task: {task[:200]}\nSolution: {answer[:600]}",
+                                           kind="solution")
+                    except Exception:
+                        pass
                 return result
 
             name = action.get("tool", "")
