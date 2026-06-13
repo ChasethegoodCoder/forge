@@ -47,6 +47,48 @@ class ProjectBuilder:
         self.agent = Agent(backend, max_steps=12)
         self.on_progress = on_progress or (lambda m: print(m, flush=True))
 
+    def _verify(self, project_dir: str, fname: str) -> tuple[bool, str]:
+        """Import the file inside the project (deps resolve). Catches syntax/name/import
+        errors without running game loops. Returns (ok, error_tail)."""
+        import subprocess
+        import sys
+        proj = WORKSPACE / project_dir
+        if not (proj / fname).exists():
+            return False, f"{fname} was not created"
+        module = fname[:-3] if fname.endswith(".py") else fname
+        try:
+            p = subprocess.run([sys.executable, "-B", "-c", f"import {module}"],
+                               cwd=str(proj), capture_output=True, text=True, timeout=20)
+        except subprocess.TimeoutExpired:
+            return False, "import timed out"
+        if p.returncode == 0:
+            return True, ""
+        err = (p.stderr or "").strip().splitlines()
+        return False, "\n".join(err[-6:])
+
+    def _build_file(self, project_dir: str, fname: str, what: str, task: str,
+                    max_fix: int = 2) -> bool:
+        """Write the file, then verify-and-fix until it imports cleanly (mastery)."""
+        self.agent.run(
+            f"You are building a project incrementally in the workspace folder "
+            f"`{project_dir}/`. Overall goal: {task}\n\n"
+            f"Files already created live in `{project_dir}/` — use glob_files/read_file to "
+            f"see them and reuse their classes/functions.\n\n"
+            f"NOW do ONLY this step: write `{project_dir}/{fname}` so that it: {what}\n"
+            f"write_file it, then run_in_project('{project_dir}', ...) to verify it imports "
+            f"and works with the others. Keep it small and correct.")
+        for _ in range(max_fix):
+            ok, err = self._verify(project_dir, fname)
+            if ok:
+                return True
+            self.on_progress(f"        fixing: {err.splitlines()[-1][:60] if err else 'error'}")
+            self.agent.run(
+                f"The file `{project_dir}/{fname}` fails to import:\n{err}\n\n"
+                f"Fix it: read_file `{project_dir}/{fname}` (and any file it imports), find "
+                f"the bug, edit_file to fix, and verify with run_in_project('{project_dir}', "
+                f"'import {fname[:-3]}'). Only fix the error.")
+        return self._verify(project_dir, fname)[0]
+
     def plan(self, task: str) -> dict:
         raw = self.backend.chat(
             [Message("system", PLAN_SYS), Message("user", task)],
@@ -67,20 +109,10 @@ class ProjectBuilder:
         for i, step in enumerate(steps, 1):
             fname, what = step.get("file", f"step{i}.py"), step.get("what", "")
             self.on_progress(f"[{i}/{len(steps)}] {fname} — {what[:60]}")
-            prompt = (
-                f"You are building a project incrementally in the workspace folder "
-                f"`{project_dir}/`. Overall goal: {task}\n\n"
-                f"Files already created live in `{project_dir}/` — use glob_files/read_file "
-                f"to see what's there and reuse it.\n\n"
-                f"NOW do ONLY this step: write `{project_dir}/{fname}` so that it: {what}\n"
-                f"Use write_file to create it, then run_in_project('{project_dir}', ...) to "
-                f"verify it imports/works with the other files. Keep it small and correct.")
-            self.agent.run(prompt)
-            path = WORKSPACE / project_dir / fname
-            ok = path.exists()
+            ok = self._build_file(project_dir, fname, what, task, max_fix=2)
             res.steps.append({"file": fname, "ok": ok,
-                              "note": "created" if ok else "MISSING"})
-            self.on_progress(f"      {'ok' if ok else 'FAILED'}")
+                              "note": "works" if ok else "has errors"})
+            self.on_progress(f"      {'ok' if ok else 'still broken after fixes'}")
 
         # Make sure there's a runnable entry. If the planned entry wasn't created,
         # fall back to a built file that has a __main__ block, then add a main step.
@@ -100,7 +132,20 @@ class ProjectBuilder:
                     f"run_in_project('{project_dir}', ...).")
             res.entry = entry
 
+        # integration pass: the whole program must import/wire together via the entry
+        iok, ierr = self._verify(project_dir, res.entry)
+        if not iok and (proj / res.entry).exists():
+            self.on_progress(f"[integration] fixing: {ierr.splitlines()[-1][:60] if ierr else ''}")
+            self.agent.run(
+                f"The program's entry file `{project_dir}/{res.entry}` fails when the project "
+                f"is run together:\n{ierr}\n\nFix the integration: read the relevant files in "
+                f"`{project_dir}/`, correct the mismatch (wrong import, wrong function name, "
+                f"bad call), edit_file, and verify with run_in_project('{project_dir}', "
+                f"'import {res.entry[:-3]}'). ")
+            iok = self._verify(project_dir, res.entry)[0]
+
         done = sum(1 for s in res.steps if s["ok"])
-        self.on_progress(f"\nBuilt {done}/{len(steps)} files in {proj}")
+        status = "runs" if iok else "builds but has integration errors"
+        self.on_progress(f"\nBuilt {done}/{len(steps)} files in {proj} — {status}")
         self.on_progress(f"Run it:  cd {proj} && python {res.entry}")
         return res
