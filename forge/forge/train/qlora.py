@@ -59,8 +59,10 @@ def train(cfg: dict):
     bnb = BitsAndBytesConfig(load_in_4bit=True, bnb_4bit_quant_type="nf4",
                              bnb_4bit_compute_dtype=torch.bfloat16,
                              bnb_4bit_use_double_quant=True)
+    # pin everything to GPU 0 — don't silently offload to CPU (bnb-4bit can't),
+    # and fail loudly if it doesn't fit instead of crashing deep in the loader.
     model = AutoModelForCausalLM.from_pretrained(
-        cfg["base_model"], quantization_config=bnb, device_map="auto",
+        cfg["base_model"], quantization_config=bnb, device_map={"": 0},
         dtype=torch.bfloat16)
     peft_cfg = LoraConfig(
         r=cfg["lora_r"], lora_alpha=cfg["lora_alpha"], lora_dropout=cfg["lora_dropout"],
