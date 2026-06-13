@@ -1,10 +1,12 @@
 # Forge configuration. Plain YAML so you can see and change everything.
 engine:
   backend: ollama
-  model: qwen2.5:7b-instruct      # swap to qwen2.5:14b-instruct-q4_K_M for more power
+  model: qwen2.5:14b-instruct-q4_K_M   # upgraded from 7B -> 14B (your local ceiling)
   host: http://localhost:11434
   temperature: 0.2
   num_ctx: 8192
+  vision_model: llama3.2-vision:11b    # best vision that fits 12GB (llava:7b fallback)
+  image_model: stabilityai/sd-turbo    # local asset generation (Stable Diffusion)
 
 agent:
   max_steps: 8

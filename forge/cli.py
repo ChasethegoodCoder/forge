@@ -145,6 +145,15 @@ def main():
         cmd_ping(model)
     elif args[0] == "image":
         cmd_image(args[1], " ".join(args[2:]) or "Describe this image.", model)
+    elif args[0] == "asset":
+        transparent = "--transparent" in args
+        a = [x for x in args[1:] if x != "--transparent"]
+        prompt, out = a[0], (a[1] if len(a) > 1 else "asset.png")
+        from forge.assets import generate_image
+        from forge.config import get
+        print(f"[asset] generating '{prompt}' -> {out} ...")
+        print(generate_image(prompt, out, model=get("engine.image_model", "stabilityai/sd-turbo"),
+                             transparent=transparent))
     elif args[0] == "build":
         from forge.builder import ProjectBuilder
         from forge import clarify
