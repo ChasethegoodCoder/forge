@@ -67,6 +67,23 @@ class ProjectBuilder:
         return False, "\n".join(err[-6:])
 
     @staticmethod
+    def _error_context(project_dir: str, fname: str, err: str) -> str:
+        """Pull the offending line(s) from the file with line numbers so the model can
+        target the exact bug instead of guessing — the key to a small model self-fixing."""
+        path = WORKSPACE / project_dir / fname
+        nums = [int(n) for n in re.findall(r'line (\d+)', err or "")]
+        if not path.exists() or not nums:
+            return ""
+        lines = path.read_text(encoding="utf-8", errors="ignore").splitlines()
+        ln = nums[-1]
+        lo, hi = max(1, ln - 4), min(len(lines), ln + 2)
+        out = [f"The error is around line {ln}. Here is that region of {fname}:"]
+        for i in range(lo, hi + 1):
+            mark = " <<< ERROR HERE" if i == ln else ""
+            out.append(f"{i:4} | {lines[i-1]}{mark}")
+        return "\n".join(out)
+
+    @staticmethod
     def _env_missing(err: str, project_dir: str) -> str | None:
         """If the error is a missing THIRD-PARTY package (not a project file), return its
         name — it's an environment problem, not a code bug, so don't try to 'fix' it."""
@@ -99,11 +116,12 @@ class ProjectBuilder:
                                  f"— skipping fix, code looks fine")
                 return True  # code is fine; the machine just lacks the package
             self.on_progress(f"        fixing: {err.splitlines()[-1][:60] if err else 'error'}")
+            ctx = self._error_context(project_dir, fname, err)
             self.agent.run(
-                f"The file `{project_dir}/{fname}` fails to import:\n{err}\n\n"
-                f"Fix it: read_file `{project_dir}/{fname}` (and any file it imports), find "
-                f"the bug, edit_file to fix, and verify with run_in_project('{project_dir}', "
-                f"'import {fname[:-3]}'). Only fix the error.")
+                f"The file `{project_dir}/{fname}` fails to import:\n{err}\n\n{ctx}\n\n"
+                f"Make the SMALLEST possible edit_file change to fix exactly that line "
+                f"(read the file it imports too if needed), then verify with "
+                f"run_in_project('{project_dir}', 'import {fname[:-3]}'). Don't rewrite.")
         return self._verify(project_dir, fname)[0]
 
     def _build_on_scaffold(self, task: str, project_dir: str, skill) -> BuildResult:
@@ -126,8 +144,32 @@ class ProjectBuilder:
             f"'import {entry[:-3]}'). Do not rewrite from scratch.")
 
         ok = self._build_file_verify_fix(project_dir, entry, max_fix=2)
-        res.steps.append({"file": entry, "ok": ok, "note": "scaffold filled"})
-        status = "runs (or needs a pip install)" if ok else "has errors"
+
+        # Completeness gate: a clean PARSE isn't enough — the model can cheat by leaving
+        # the scaffold TODOs. If TODO markers remain, make it actually implement them.
+        for _ in range(2):
+            text = (proj / entry).read_text(encoding="utf-8", errors="ignore")
+            remaining = text.count("TODO")
+            if remaining == 0:
+                break
+            self.on_progress(f"        {remaining} TODO(s) left — implementing for real")
+            self.agent.run(
+                f"`{project_dir}/{entry}` still has TODO comments that are NOT implemented. "
+                f"Goal: {task}. read_file it, then edit_file to REPLACE each TODO with real "
+                f"working code (spawn/move/draw obstacles, collision sets self.dead, scoring). "
+                f"Remove the TODO comment once done. Verify it still imports with "
+                f"run_in_project('{project_dir}', 'import {entry[:-3]}').")
+            if not self._build_file_verify_fix(project_dir, entry, max_fix=2):
+                break
+        todos_left = (proj / entry).read_text(encoding="utf-8", errors="ignore").count("TODO")
+        res.steps.append({"file": entry, "ok": ok and todos_left == 0,
+                          "note": f"{todos_left} TODOs left" if todos_left else "implemented"})
+        if ok and todos_left == 0:
+            status = "runs + features implemented"
+        elif ok:
+            status = f"parses but {todos_left} TODO(s) unimplemented (7B ceiling)"
+        else:
+            status = "has errors"
         self.on_progress(f"\nBuilt {project_dir}/{entry} — {status}")
         self.on_progress(f"Run it:  cd {proj} && python {entry}")
         return res
@@ -140,10 +182,12 @@ class ProjectBuilder:
             if self._env_missing(err, project_dir):
                 return True
             self.on_progress(f"        fixing: {err.splitlines()[-1][:60] if err else 'error'}")
+            ctx = self._error_context(project_dir, fname, err)
             self.agent.run(
-                f"`{project_dir}/{fname}` fails to import:\n{err}\nFix ONLY this error: "
-                f"read_file it, edit_file the fix, verify with run_in_project('{project_dir}', "
-                f"'import {fname[:-3]}').")
+                f"`{project_dir}/{fname}` fails to import:\n{err}\n\n{ctx}\n\n"
+                f"Make the SMALLEST possible edit_file change to fix exactly that line, then "
+                f"verify with run_in_project('{project_dir}', 'import {fname[:-3]}'). Do not "
+                f"rewrite the file.")
         return self._verify(project_dir, fname)[0]
 
     def plan(self, task: str) -> dict:
