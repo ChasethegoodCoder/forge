@@ -42,6 +42,7 @@ class OrchestratorResult:
     critic_verdict: str = ""
     critic_issue: str = ""
     steps: list = field(default_factory=list)
+    stopped_reason: str = "final"   # compat with RunResult (harness reads this)
 
 
 class Orchestrator:
