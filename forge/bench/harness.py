@@ -36,9 +36,14 @@ def load_suite(name: str) -> list[dict]:
     return [json.loads(line) for line in f.read_text(encoding="utf-8").splitlines() if line.strip()]
 
 
-def run(suites: list[str], model: str | None, max_steps: int) -> dict:
+def run(suites: list[str], model: str | None, max_steps: int, critic: bool = False) -> dict:
     backend = get_backend(model)
-    agent = Agent(backend, max_steps=max_steps)
+    if critic:
+        from forge.orchestrator import Orchestrator
+        agent = Orchestrator(backend, max_steps=max_steps)
+        agent.backend = backend  # rubric judge needs a backend handle
+    else:
+        agent = Agent(backend, max_steps=max_steps)
     started = time.time()
     per_task, per_cat = [], {}
 
@@ -46,10 +51,16 @@ def run(suites: list[str], model: str | None, max_steps: int) -> dict:
         for task in load_suite(suite):
             t0 = time.time()
             res = agent.run(task["prompt"])
-            # code the agent executed during the run — fallback source for scoring
-            executed = [s.args.get("code", "") for s in res.steps
-                        if s.action == "run_python" and isinstance(s.args, dict)]
-            sc, note = score_one(res.answer, task["score"], extra_code=executed)
+            spec = task["score"]
+            if spec.get("type") == "rubric":
+                from bench.judge_llm import rubric_score
+                sc, note = rubric_score(task["prompt"], res.answer,
+                                        spec["criteria"], agent.backend)
+            else:
+                # code the agent executed during the run — fallback source for scoring
+                executed = [s.args.get("code", "") for s in res.steps
+                            if s.action == "run_python" and isinstance(s.args, dict)]
+                sc, note = score_one(res.answer, spec, extra_code=executed)
             dt = round(time.time() - t0, 1)
             row = {
                 "id": task["id"], "suite": suite,
@@ -84,11 +95,13 @@ def main():
     ap.add_argument("--suite", action="append", help="suite name (repeatable)")
     ap.add_argument("--model", default=None)
     ap.add_argument("--max-steps", type=int, default=8)
+    ap.add_argument("--critic", action="store_true", help="use planner/coder/critic orchestrator")
     args = ap.parse_args()
-    suites = args.suite or ["reasoning", "coding"]
+    suites = args.suite or ["reasoning", "coding", "writing", "agent"]
 
-    print(f"\n=== Forge Benchmark — model={args.model or 'default'} suites={suites} ===")
-    rec = run(suites, args.model, args.max_steps)
+    print(f"\n=== Forge Benchmark — model={args.model or 'default'} suites={suites} "
+          f"{'(critic)' if args.critic else ''} ===")
+    rec = run(suites, args.model, args.max_steps, critic=args.critic)
     print("\n--- SUMMARY ---")
     print(f"model:    {rec['model']}")
     print(f"overall:  {rec['overall']*100:.1f}%  ({rec['n_tasks']} tasks, {rec['elapsed_s']}s)")
