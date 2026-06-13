@@ -80,6 +80,60 @@ TASKS = [
                 "assert median([1,2,3,4]) == 2.5\n"
                 "assert median([5]) == 5\n",
     },
+    {
+        "id": "repo-004",
+        "report": "final_price(p) should apply the DISCOUNT from config as a REDUCTION "
+                  "(20% off 100 = 80), but it returns the wrong amount. Fix it.",
+        "files": {
+            "config.py": "DISCOUNT = 0.2\n",
+            "pricing.py": "from config import DISCOUNT\n\n"
+                          "def final_price(p):\n    return p * DISCOUNT\n",
+        },
+        "test": "from pricing import final_price\n"
+                "assert final_price(100) == 80\n"
+                "assert final_price(50) == 40\n",
+    },
+    {
+        "id": "repo-005",
+        "report": "valid_password(s) should accept passwords of length >= MIN_LEN (8), "
+                  "but it rejects passwords that are exactly 8 chars. Fix the boundary.",
+        "files": {
+            "rules.py": "MIN_LEN = 8\n",
+            "validate.py": "from rules import MIN_LEN\n\n"
+                           "def valid_password(s):\n    return len(s) > MIN_LEN\n",
+        },
+        "test": "from validate import valid_password\n"
+                "assert valid_password('a'*8) == True\n"
+                "assert valid_password('a'*7) == False\n",
+    },
+    {
+        "id": "repo-006",
+        "report": "normalize(x) should clamp x into [0, 100], but values above 100 aren't "
+                  "capped. The bug is in the clamp() helper. Fix it.",
+        "files": {
+            "helpers.py": "def clamp(x, lo, hi):\n    return max(lo, x)\n",
+            "main.py": "from helpers import clamp\n\n"
+                       "def normalize(x):\n    return clamp(x, 0, 100)\n",
+        },
+        "test": "from main import normalize\n"
+                "assert normalize(150) == 100\n"
+                "assert normalize(-5) == 0\n"
+                "assert normalize(50) == 50\n",
+    },
+    {
+        "id": "repo-007",
+        "report": "word_count(text) miscounts when there are multiple spaces between words "
+                  "(it counts empty strings). The bug is in how analyzer.py splits. Fix it.",
+        "files": {
+            "text_utils.py": "def clean(text):\n    return text.strip()\n",
+            "analyzer.py": "from text_utils import clean\n\n"
+                           "def word_count(text):\n    return len(clean(text).split(' '))\n",
+        },
+        "test": "from analyzer import word_count\n"
+                "assert word_count('hello  world') == 2\n"
+                "assert word_count('a b c') == 3\n"
+                "assert word_count('  spaced   out  ') == 2\n",
+    },
 ]
 
 PROMPT = """There is a small Python project in the folder `{dir}/` in your workspace.
