@@ -89,6 +89,16 @@ def main():
         i = args.index("--model")
         model = args[i + 1]
         del args[i:i + 2]
+    # Phase B: --project <path> points Forge's file tools at a REAL folder on your PC
+    # (read/edit/run scoped to it) instead of the sandbox. Set BEFORE tools load.
+    if "--project" in args:
+        import os
+        i = args.index("--project")
+        root = os.path.abspath(os.path.expanduser(args[i + 1]))
+        del args[i:i + 2]
+        os.environ["FORGE_WORKSPACE"] = root
+        print(f"[project] Forge is working in: {root}")
+        print("[project] it can read/edit/run files HERE — real files, real changes.\n")
 
     if not args or args[0] == "chat":
         cmd_chat(model)

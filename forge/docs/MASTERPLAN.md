@@ -71,6 +71,12 @@ You asked for conversation history.
 
 ---
 
+## Progress
+- ✅ **Phase A** — Builder v2 (self-debug + integration) — built.
+- ✅ **Phase B** — real folder access via `--project <path>` (tools scoped to your files) — built.
+- ✅ **Phase C** — Skills + pygame scaffold (stub → near-complete game) — built.
+- ⬜ Phase D (documents) · E (conversation history) · F (UI — you're designing) · G (escalation — needs a rented model).
+
 ## Build order (recommended)
 1. **Phase A — Builder v2 + self-debug** (gets you running games).
 2. **Phase C — Skills** (pygame scaffold → geometry dash starts from a working loop).
