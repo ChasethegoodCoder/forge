@@ -20,20 +20,23 @@ from forge.backend import get_backend
 
 
 def cmd_chat(model: str | None):
-    agent = Agent(get_backend(model))
-    print("Forge agent ready. Type 'exit' to quit.\n")
+    from forge.chat import Conversation
+    convo = Conversation(get_backend(model))
+    print("Forge ready — talk to me normally; I switch to coding mode when you ask for code.")
+    print("Type 'exit' to quit.\n")
     while True:
         try:
-            task = input("you> ").strip()
+            msg = input("you> ").strip()
         except (EOFError, KeyboardInterrupt):
             print()
             break
-        if task.lower() in {"exit", "quit"}:
+        if msg.lower() in {"exit", "quit"}:
             break
-        if not task:
+        if not msg:
             continue
-        res = agent.run(task)
-        print(f"forge> {res.answer}\n  ({len(res.steps)} steps, stop={res.stopped_reason})\n")
+        reply, mode = convo.send(msg)
+        tag = "[coding]" if mode == "task" else "[chat]"
+        print(f"forge {tag}> {reply}\n")
 
 
 def cmd_ping(model: str | None):
