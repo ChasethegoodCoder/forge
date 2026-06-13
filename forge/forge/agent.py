@@ -191,5 +191,13 @@ class Agent:
             msgs.append(Message("tool", f"observation from {name}:\n{obs}", name=name))
 
         result.stopped_reason = "budget"
-        result.answer = result.steps[-1].observation if result.steps else ""
+        # Budget hit mid-work: recover the agent's BEST code, not the last tool output.
+        # The most-refined solution is usually the last code it executed via run_python.
+        code_snippets = [s.args.get("code", "") for s in result.steps
+                         if s.action == "run_python" and isinstance(s.args, dict)
+                         and s.args.get("code")]
+        if code_snippets:
+            result.answer = f"```python\n{code_snippets[-1]}\n```"
+        elif result.steps:
+            result.answer = result.steps[-1].observation
         return result
