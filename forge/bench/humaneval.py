@@ -85,6 +85,15 @@ def _read_solution() -> str:
     return p.read_text(encoding="utf-8") if p.exists() else ""
 
 
+def _compiles(code: str) -> bool:
+    import ast
+    try:
+        ast.parse(code)
+        return True
+    except SyntaxError:
+        return False
+
+
 def solve_once(agent, problem: dict) -> tuple[bool, str, str]:
     # clean prior solution so a stale file can't pass for this problem
     sol_path = WORKSPACE / SOLUTION
@@ -93,12 +102,16 @@ def solve_once(agent, problem: dict) -> tuple[bool, str, str]:
     task = PROMPT_TMPL.format(sol=SOLUTION, prompt=problem["prompt"])
     res = agent.run(task)  # agent OR orchestrator — both return .answer / .steps
     code = _read_solution()
-    if "def " + problem["entry_point"] not in code:
-        # fallback: agent answered inline instead of writing the file
+    # Use the written file only if it defines the entry point AND actually compiles.
+    # Otherwise fall back to the code the agent verified inline (run_python snippets)
+    # or its final answer — robust against a malformed write_file escape.
+    if ("def " + problem["entry_point"] not in code) or not _compiles(code):
         from bench.judge import _pick_source
         executed = [s.args.get("code", "") for s in res.steps
                     if s.action == "run_python" and isinstance(s.args, dict)]
-        code = _pick_source(res.answer, problem["entry_point"], executed)
+        fallback = _pick_source(res.answer, problem["entry_point"], executed)
+        if ("def " + problem["entry_point"] in fallback) and _compiles(fallback):
+            code = fallback
     ok, note = _run_test(code, problem["test"], problem["entry_point"])
     return ok, note, res.stopped_reason
 
