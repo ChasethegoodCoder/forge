@@ -85,13 +85,50 @@ def _read_solution() -> str:
     return p.read_text(encoding="utf-8") if p.exists() else ""
 
 
-def _compiles(code: str) -> bool:
+def _repair_escapes(code: str) -> str:
+    """Decode stray literal \\n / \\t the 7B leaves when escaping code into JSON."""
+    if "\\n" in code or "\\t" in code:
+        try:
+            return code.encode("utf-8").decode("unicode_escape")
+        except (UnicodeDecodeError, ValueError):
+            pass
+    return code
+
+
+def _clean_source(candidates: list[str], entry: str) -> str:
+    """Normalize messy model output into clean, compilable source.
+
+    For each candidate (raw and escape-repaired), parse with ast and keep ONLY
+    top-level imports, function/class defs, and simple assignments — dropping
+    duplicate bodies, stray test calls, and self-referential `import solution`.
+    Return the first variant whose definitions include `entry`. This is robust to
+    nearly anything a small model emits, because we rebuild from the AST.
+    """
     import ast
-    try:
-        ast.parse(code)
-        return True
-    except SyntaxError:
-        return False
+    KEEP = (ast.Import, ast.ImportFrom, ast.FunctionDef, ast.AsyncFunctionDef,
+            ast.ClassDef, ast.Assign)
+    for raw in candidates:
+        if not raw or not raw.strip():
+            continue
+        for variant in (raw, _repair_escapes(raw)):
+            try:
+                tree = ast.parse(variant)
+            except SyntaxError:
+                continue
+            body, names = [], set()
+            for node in tree.body:
+                if isinstance(node, (ast.Import, ast.ImportFrom)):
+                    mods = [a.name for a in node.names]
+                    if "solution" in mods or getattr(node, "module", "") == "solution":
+                        continue  # drop self-import
+                    body.append(node)
+                elif isinstance(node, KEEP):
+                    body.append(node)
+                    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                        names.add(node.name)
+            if entry in names:
+                return ast.unparse(ast.Module(body=body, type_ignores=[]))
+    return ""
 
 
 def solve_once(agent, problem: dict) -> tuple[bool, str, str]:
@@ -101,18 +138,17 @@ def solve_once(agent, problem: dict) -> tuple[bool, str, str]:
         sol_path.unlink()
     task = PROMPT_TMPL.format(sol=SOLUTION, prompt=problem["prompt"])
     res = agent.run(task)  # agent OR orchestrator — both return .answer / .steps
-    code = _read_solution()
-    # Use the written file only if it defines the entry point AND actually compiles.
-    # Otherwise fall back to the code the agent verified inline (run_python snippets)
-    # or its final answer — robust against a malformed write_file escape.
-    if ("def " + problem["entry_point"] not in code) or not _compiles(code):
-        from bench.judge import _pick_source
-        executed = [s.args.get("code", "") for s in res.steps
-                    if s.action == "run_python" and isinstance(s.args, dict)]
-        fallback = _pick_source(res.answer, problem["entry_point"], executed)
-        if ("def " + problem["entry_point"] in fallback) and _compiles(fallback):
-            code = fallback
-    ok, note = _run_test(code, problem["test"], problem["entry_point"])
+    entry = problem["entry_point"]
+    # Candidate sources, best-first: code the agent actually executed (cleanest,
+    # since it ran successfully), most-recent first; then the written file; then
+    # the final answer. _clean_source AST-normalizes whatever it picks.
+    executed = [s.args.get("code", "") for s in res.steps
+                if s.action == "run_python" and isinstance(s.args, dict)]
+    candidates = list(reversed(executed)) + [_read_solution(), res.answer]
+    code = _clean_source(candidates, entry)
+    if not code:
+        return False, "no compilable solution defining " + entry, res.stopped_reason
+    ok, note = _run_test(code, problem["test"], entry)
     return ok, note, res.stopped_reason
 
 
