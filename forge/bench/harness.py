@@ -36,14 +36,20 @@ def load_suite(name: str) -> list[dict]:
     return [json.loads(line) for line in f.read_text(encoding="utf-8").splitlines() if line.strip()]
 
 
-def run(suites: list[str], model: str | None, max_steps: int, critic: bool = False) -> dict:
+def run(suites: list[str], model: str | None, max_steps: int,
+        critic: bool = False, mode: str = "single") -> dict:
     backend = get_backend(model)
     if critic:
+        mode = "critic"
+    if mode == "critic":
         from forge.orchestrator import Orchestrator
         agent = Orchestrator(backend, max_steps=max_steps)
-        agent.backend = backend  # rubric judge needs a backend handle
+    elif mode == "bestofn":
+        from forge.orchestrator import BestOfN
+        agent = BestOfN(backend, n=3, max_steps=max_steps)
     else:
         agent = Agent(backend, max_steps=max_steps)
+    agent.backend = backend  # rubric judge needs a backend handle on any solver
     started = time.time()
     per_task, per_cat = [], {}
 
@@ -95,13 +101,16 @@ def main():
     ap.add_argument("--suite", action="append", help="suite name (repeatable)")
     ap.add_argument("--model", default=None)
     ap.add_argument("--max-steps", type=int, default=8)
-    ap.add_argument("--critic", action="store_true", help="use planner/coder/critic orchestrator")
+    ap.add_argument("--critic", action="store_true", help="shortcut for --mode critic")
+    ap.add_argument("--mode", choices=["single", "critic", "bestofn"], default="single",
+                    help="single agent, critic orchestrator, or best-of-N sampling")
     args = ap.parse_args()
     suites = args.suite or ["reasoning", "coding", "writing", "agent"]
+    mode = "critic" if args.critic else args.mode
 
     print(f"\n=== Forge Benchmark — model={args.model or 'default'} suites={suites} "
-          f"{'(critic)' if args.critic else ''} ===")
-    rec = run(suites, args.model, args.max_steps, critic=args.critic)
+          f"mode={mode} ===")
+    rec = run(suites, args.model, args.max_steps, mode=mode)
     print("\n--- SUMMARY ---")
     print(f"model:    {rec['model']}")
     print(f"overall:  {rec['overall']*100:.1f}%  ({rec['n_tasks']} tasks, {rec['elapsed_s']}s)")

@@ -39,11 +39,15 @@ class HFBackend(Backend):
     def chat(self, messages: list[Message], cfg: GenConfig) -> str:
         import torch
         msgs = [{"role": m.role, "content": m.content} for m in messages]
-        inputs = self.tok.apply_chat_template(
-            msgs, add_generation_prompt=True, return_tensors="pt").to(self.model.device)
+        enc = self.tok.apply_chat_template(
+            msgs, add_generation_prompt=True, return_tensors="pt", return_dict=True)
+        input_ids = enc["input_ids"].to(self.model.device)
+        attn = enc.get("attention_mask")
+        attn = attn.to(self.model.device) if attn is not None else None
         with torch.no_grad():
             out = self.model.generate(
-                inputs, max_new_tokens=cfg.max_tokens,
+                input_ids=input_ids, attention_mask=attn,
+                max_new_tokens=cfg.max_tokens,
                 temperature=max(cfg.temperature, 1e-4), top_p=cfg.top_p,
                 do_sample=cfg.temperature > 0, pad_token_id=self.tok.eos_token_id)
-        return self.tok.decode(out[0][inputs.shape[1]:], skip_special_tokens=True)
+        return self.tok.decode(out[0][input_ids.shape[1]:], skip_special_tokens=True)

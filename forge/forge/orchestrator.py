@@ -45,10 +45,22 @@ class OrchestratorResult:
     stopped_reason: str = "final"   # compat with RunResult (harness reads this)
 
 
+PLANNER_SYS = """You are a planning assistant. Given a programming task, produce a SHORT
+numbered plan (2-5 steps) describing how to implement and verify it. Be concrete about
+edge cases to handle. Output ONLY the plan, no code."""
+
+
 class Orchestrator:
-    def __init__(self, backend: Backend, max_steps: int = 10):
+    def __init__(self, backend: Backend, max_steps: int = 10, plan: bool = False):
         self.backend = backend
         self.coder = Agent(backend, max_steps=max_steps)
+        self.plan = plan  # planner -> coder -> critic (full multi-agent)
+
+    def _planner(self, task: str) -> str:
+        out = self.backend.chat(
+            [Message("system", PLANNER_SYS), Message("user", task)],
+            GenConfig(temperature=0.3))
+        return out.strip()[:800]
 
     def _critic(self, task: str, solution: str) -> tuple[str, str]:
         import json, re
@@ -65,8 +77,13 @@ class Orchestrator:
         return obj.get("verdict", "PASS").upper(), obj.get("issue", "")
 
     def run(self, task: str) -> OrchestratorResult:
+        # 0) optional planner stage — decompose before coding (full planner->coder->critic)
+        coder_task = task
+        if self.plan:
+            plan = self._planner(task)
+            coder_task = f"{task}\n\nSuggested plan:\n{plan}"
         # 1) coder produces a verified solution
-        first = self.coder.run(task)
+        first = self.coder.run(coder_task)
         res = OrchestratorResult(answer=first.answer, steps=list(first.steps))
 
         # 2) critic reviews
@@ -85,3 +102,45 @@ class Orchestrator:
         res.revised = True
         res.steps += second.steps
         return res
+
+
+class BestOfN:
+    """Reliability via sampling (Phase 19): generate N independent solutions at varied
+    temperatures, then SELECT the best by self-verification — prefer candidates whose
+    code compiles AND that the agent actually executed (run_python) before finalizing.
+    Legit pass@1 booster: if any of N attempts lands a verified solution, we use it.
+    No access to hidden tests — selection is purely on the agent's own verification."""
+
+    def __init__(self, backend: Backend, n: int = 3, max_steps: int = 10):
+        self.backend = backend
+        self.n = n
+        self.max_steps = max_steps
+
+    def _compiles(self, answer: str) -> bool:
+        import ast
+        import re
+        m = re.search(r"```(?:python)?\s*(.*?)```", answer, re.DOTALL)
+        code = m.group(1) if m else answer
+        try:
+            ast.parse(code)
+            return True
+        except SyntaxError:
+            return False
+
+    def run(self, task: str):
+        from .agent import Agent, GenConfig
+        candidates = []
+        for i in range(self.n):
+            temp = 0.1 + 0.3 * i  # 0.1, 0.4, 0.7 — diversify attempts
+            agent = Agent(self.backend, max_steps=self.max_steps,
+                          cfg=GenConfig(temperature=temp, json_mode=True))
+            r = agent.run(task)
+            verified = any(s.action == "run_python" for s in r.steps) and r.stopped_reason == "final"
+            candidates.append((verified, self._compiles(r.answer), r))
+        # rank: verified+compiles > compiles > anything; first of best tier wins
+        candidates.sort(key=lambda c: (c[0], c[1]), reverse=True)
+        best = candidates[0][2]
+        # reuse OrchestratorResult shape for harness compatibility
+        return OrchestratorResult(answer=best.answer, steps=best.steps,
+                                  critic_verdict=f"best-of-{self.n}",
+                                  stopped_reason=best.stopped_reason)
