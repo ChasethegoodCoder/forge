@@ -47,12 +47,16 @@ def cmd_ping(model: str | None):
     from forge.backend import get_backend, GenConfig, Message
 
     host = get("engine.host")
-    print(f"Backend host: {host}")
+    kind = get("engine.backend", "ollama")
+    print(f"Backend host: {host}  ({kind})")
     print(f"Model:        {model or get('engine.model')}")
     try:
-        tags = requests.get(f"{host.rstrip('/')}/api/tags", timeout=10).json()
-        names = [m.get("name") for m in tags.get("models", [])]
-        print(f"Reachable [OK]  ({len(names)} models available: {', '.join(names[:6])})")
+        # Ollama lists at /api/tags; vLLM (openai) lists at /v1/models
+        url = f"{host.rstrip('/')}/v1/models" if kind in ("openai", "vllm") else f"{host.rstrip('/')}/api/tags"
+        data = requests.get(url, timeout=10).json()
+        items = data.get("models") or data.get("data") or []
+        names = [m.get("name") or m.get("id") for m in items]
+        print(f"Reachable [OK]  ({len(names)} models available: {', '.join(str(n) for n in names[:6])})")
     except Exception as e:
         print(f"NOT reachable [FAIL]  {type(e).__name__}: {e}")
         print("  - is the box on? is Ollama serving on that host:port? is the port exposed?")

@@ -114,10 +114,41 @@ class OllamaBackend(Backend):
                     yield piece
 
 
+class OpenAICompatBackend(Backend):
+    """Talks to an OpenAI-compatible /v1/chat/completions endpoint — i.e. a vLLM server
+    YOU rent and run on a big GPU node. Self-hosted, so it's your own model, not a
+    third-party API (no real key needed; vLLM accepts any). This is how Forge drives the
+    big rungs of the ladder (70B / 671B / ~1T) that vLLM serves with tensor-parallelism."""
+
+    def __init__(self, model: str, host: str, api_key: str = "EMPTY"):
+        self.model = model
+        self.host = host.rstrip("/")
+        self.api_key = api_key
+        self.name = f"vllm:{model}"
+
+    def chat(self, messages: list[Message], cfg: GenConfig) -> str:
+        body: dict[str, Any] = {
+            "model": self.model,
+            "messages": [{"role": m.role, "content": m.content} for m in messages],
+            "temperature": cfg.temperature, "top_p": cfg.top_p,
+            "max_tokens": cfg.max_tokens,
+        }
+        if cfg.json_mode:
+            body["response_format"] = {"type": "json_object"}
+        r = requests.post(f"{self.host}/v1/chat/completions", json=body,
+                          headers={"Authorization": f"Bearer {self.api_key}"}, timeout=600)
+        r.raise_for_status()
+        return r.json()["choices"][0]["message"]["content"]
+
+
 def get_backend(model: str | None = None) -> Backend:
-    """Factory. Defaults come from config/forge.yaml (engine.model / engine.host)."""
+    """Factory. Defaults from config/forge.yaml. engine.backend selects ollama (local)
+    or openai (a vLLM server you rent for big models)."""
     from .config import get
-    return OllamaBackend(
-        model=model or get("engine.model", "qwen2.5:7b-instruct"),
-        host=get("engine.host", "http://localhost:11434"),
-    )
+    kind = get("engine.backend", "ollama")
+    host = get("engine.host", "http://localhost:11434")
+    name = model or get("engine.model", "qwen2.5:7b-instruct")
+    if kind in ("openai", "vllm"):
+        return OpenAICompatBackend(model=name, host=host,
+                                   api_key=get("engine.api_key", "EMPTY"))
+    return OllamaBackend(model=name, host=host)
