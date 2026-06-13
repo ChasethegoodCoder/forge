@@ -39,12 +39,21 @@ score (~92% pass@1) is known, so the gap Forge reports is comparable to the actu
 target. Scoring is file-based (the agent writes `solution.py`; the official test runs
 against it) — no fragile output parsing.
 
+## Harness (the Claude-Code-style part)
+Forge's power comes from the harness around the model, not the weights:
+- **9 tools:** `read_file` `write_file` `list_files` `edit_file` (surgical) `grep`
+  `glob_files` `run_python` `run_shell` `update_plan`.
+- **Operating principles** baked into the system prompt: understand → plan → edit
+  surgically → verify by running → self-critique → act decisively.
+- **Multi-agent** (`forge/orchestrator.py`): coder + strict critic + one revision.
+  Try it: `python cli.py humaneval --limit 20 --critic`.
+
 ## Layout
 ```
 forge/
-  forge/        core: backend (engine), agent (loop), tools/, memory
-  bench/        measurement: tasks/, judge, harness, report, results/
-  docs/         the reports: current-state, target, gap, roadmap
+  forge/        core: backend (engine), agent (loop), orchestrator, tools/, memory
+  bench/        measurement: tasks/, data/ (HumanEval), judge, harness, humaneval, report
+  docs/         reports: current-state, target, gap, roadmap, checklist, forge-vs-claude
   config/       forge.yaml
   cli.py        entry point
 ```

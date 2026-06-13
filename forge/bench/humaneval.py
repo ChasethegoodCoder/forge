@@ -85,13 +85,13 @@ def _read_solution() -> str:
     return p.read_text(encoding="utf-8") if p.exists() else ""
 
 
-def solve_once(agent: Agent, problem: dict) -> tuple[bool, str, str]:
+def solve_once(agent, problem: dict) -> tuple[bool, str, str]:
     # clean prior solution so a stale file can't pass for this problem
     sol_path = WORKSPACE / SOLUTION
     if sol_path.exists():
         sol_path.unlink()
     task = PROMPT_TMPL.format(sol=SOLUTION, prompt=problem["prompt"])
-    res = agent.run(task)
+    res = agent.run(task)  # agent OR orchestrator — both return .answer / .steps
     code = _read_solution()
     if "def " + problem["entry_point"] not in code:
         # fallback: agent answered inline instead of writing the file
@@ -103,8 +103,13 @@ def solve_once(agent: Agent, problem: dict) -> tuple[bool, str, str]:
     return ok, note, res.stopped_reason
 
 
-def run(model: str | None, limit: int, k: int, max_steps: int) -> dict:
-    agent = Agent(get_backend(model), max_steps=max_steps)
+def run(model: str | None, limit: int, k: int, max_steps: int, critic: bool = False) -> dict:
+    backend_obj = get_backend(model)
+    if critic:
+        from forge.orchestrator import Orchestrator
+        agent = Orchestrator(backend_obj, max_steps=max_steps)
+    else:
+        agent = Agent(backend_obj, max_steps=max_steps)
     problems = load_problems(limit)
     started = time.time()
     rows = []
@@ -129,10 +134,10 @@ def run(model: str | None, limit: int, k: int, max_steps: int) -> dict:
     n = len(rows)
     pass1 = sum(r["pass1"] for r in rows) / n
     passk = sum(r["passk"] for r in rows) / n
-    backend = get_backend(model)
     record = {
         "ts": datetime.now(timezone.utc).isoformat(),
-        "bench": "HumanEval", "model": backend.name,
+        "bench": "HumanEval", "model": backend_obj.name,
+        "mode": "critic" if critic else "single",
         "n": n, "k": k, "pass1": round(pass1, 4), "passk": round(passk, 4),
         "target_pass1": TARGET_PASS1,
         "gap_points": round((TARGET_PASS1 - pass1) * 100, 1),
@@ -149,10 +154,12 @@ def main():
     ap.add_argument("--limit", type=int, default=20)
     ap.add_argument("--k", type=int, default=1)
     ap.add_argument("--max-steps", type=int, default=10)
+    ap.add_argument("--critic", action="store_true", help="use planner/coder/critic orchestrator")
     a = ap.parse_args()
 
-    print(f"\n=== HumanEval — model={a.model or 'default'} limit={a.limit} k={a.k} ===")
-    rec = run(a.model, a.limit, a.k, a.max_steps)
+    mode = "critic" if a.critic else "single"
+    print(f"\n=== HumanEval — model={a.model or 'default'} limit={a.limit} k={a.k} mode={mode} ===")
+    rec = run(a.model, a.limit, a.k, a.max_steps, critic=a.critic)
     print("\n--- RESULT ---")
     print(f"model:    {rec['model']}")
     print(f"pass@1:   {rec['pass1']*100:.1f}%   (n={rec['n']}, {rec['elapsed_s']}s)")

@@ -216,6 +216,33 @@ See `docs/FORGE_VS_CLAUDE.md` for which gaps are *harness* (buildable) vs *weigh
 
 ---
 
+---
+
+## G. Harness port — Claude-Code patterns ported into Forge (this iteration)
+Goal: replicate the *harness* (not the weights) that makes Claude Code strong.
+
+| Ported capability | Forge implementation | Phase | Status |
+|---|---|:--:|:--:|
+| Surgical file editing | `edit_file` (exact-match replace) | P4/P15 | [x] |
+| Codebase search | `grep` (content regex) | P4/P15 | [x] |
+| File discovery | `glob_files` (name patterns) | P4/P15 | [x] |
+| Explicit planning / todo state | `update_plan` tool (TodoWrite pattern) | P14 | [x] |
+| Operating principles | rewritten system prompt: understand→plan→edit→verify→critique→act | P0 | [x] |
+| Self-critique / review | `Orchestrator` critic pass (gated, concrete-bug only) | P6 | [x] |
+| Multi-agent roles | `Orchestrator`: coder + critic + 1 revision (planner next) | P9 | [~] |
+| Measurable critic | HumanEval `--critic` flag for A/B vs single-pass | P16 | [x] |
+
+**Now 9 agent tools** (was 5): read/write/list/edit + grep/glob + python/shell + plan.
+
+Still missing from the Claude-Code harness (next): web search/fetch (P18), full
+planner role + subagent parallelism (P9), semantic memory (P5), repo-map &
+SWE-bench-style multi-file tasks (P15), diff-based patches across many files.
+
+**Verification owed:** run `python cli.py humaneval --limit 20 --critic` and compare
+pass@1 to the single-pass baseline. Keep the critic only if the number rises.
+
+---
+
 > Governing rule (unchanged): a change is "done" only when the benchmark
 > (`python cli.py report` / `humaneval_history.jsonl`) shows the number moved. If it
 > doesn't move, we revert.
