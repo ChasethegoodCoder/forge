@@ -144,4 +144,78 @@ Every item you listed, mapped to a phase and its current status.
 2. **Phase 4 web tools** — biggest single capability gap (Research ~15/100) and cheap to add.
 3. **Phase 6 critic pass** — directly raises coding/reasoning correctness, measurable immediately.
 
-> Governing rule (unchanged): a change is "done" only when `python cli.py report` shows the benchmark moved. If the number doesn't move, we revert.
+---
+
+## E. Expansion phases (added) — features that close the Claude-Code gap
+See `docs/FORGE_VS_CLAUDE.md` for which gaps are *harness* (buildable) vs *weights*.
+
+### Phase 14 — Explicit Planning & Task State  ⬜
+- **Why:** Claude Code tracks an explicit plan + todo list; Forge plans only implicitly
+  inside the loop, so it loses the thread on long tasks.
+- **Need:** a `plan` step that writes an ordered task list to project memory; the loop
+  marks items done/blocked and replans on failure. Surface it in `solve` output.
+- Owner: F.
+
+### Phase 15 — Codebase-Scale Coding  ⬜  *(core to "great at coding")*
+- **Why:** real coding = many files, not one function. This is the highest-value
+  coding capability Forge lacks.
+- **Need:** repo-map tool (list/grep/symbol index), `apply_patch` diff editing,
+  multi-file context assembly, and a **SWE-bench-style** task suite (clone a repo,
+  fix a failing test). 
+- Owner: F, **H** to provide/approve target repos.
+
+### Phase 16 — Benchmark Spine Expansion  🟡 (HumanEval live)
+- **Done:** HumanEval runner, file-based scoring, pass@k, target anchor (92%).
+- **Need:** add **MBPP** and **EvalPlus** (harder, contamination-resistant); a
+  permanent **held-out** split; per-difficulty breakdown.
+- Owner: F.
+
+### Phase 17 — Statistical Rigor  🟡 (pass@k done)
+- **Done:** pass@k sampling in HumanEval.
+- **Need:** report variance/confidence across seeds; flag regressions only when the
+  change exceeds noise; store seed + suite-version in every record.
+- Owner: F.
+
+### Phase 18 — Knowledge Injection (mitigate the weights gap)  ⬜
+- **Why:** a 7B model has limited/older world knowledge. Web + RAG injects fresh,
+  correct context at inference instead of relying on weights.
+- **Need:** `web_search`/`web_fetch` (P4) feeding a retrieval step; doc-ingest → vector
+  store (P5) so the agent can read library docs before coding against them.
+- Owner: F.
+
+### Phase 19 — Reliability & Critic Ensemble  ⬜
+- **Why:** frontier reliability comes from low per-step error. Forge compounds errors.
+- **Need:** critic ensemble (generate N solutions → test each → pick the one that
+  passes the agent's own tests); retry-with-error-feedback; confidence gating
+  (ask/escalate when unsure).
+- Owner: F.
+
+### Phase 20 — Observability & DX  ⬜
+- **Why:** you can't improve what you can't see.
+- **Need:** structured run traces (every step/tool/observation saved), a `forge inspect`
+  command to replay a run, a tiny HTML dashboard over `history.jsonl`, and config
+  loading (`config/forge.yaml` is written but **not yet read** by the code — real TODO).
+- Owner: F.
+
+### Phase 21 — Packaging & Integration  ⬜
+- **Why:** make Forge usable like a real tool.
+- **Need:** `pip install -e .` packaging, a `forge` entry-point, optional VS Code /
+  terminal integration, streaming output in `chat`.
+- Owner: F/M.
+
+---
+
+## F. Completed this iteration (improvement pass)
+- [x] **#1 File-based scoring** — agent writes `solution.py`; judge imports & tests it
+      (kills the regex-extraction false-FAILs that broke `add()`).
+- [x] **#2 HumanEval spine** — standard benchmark vs known Sonnet 4.6 target (92%).
+- [x] **#3 pass@k** — stochastic-aware scoring.
+- [x] **#4 JSON mode** — `format:json` forces valid, properly-escaped actions at the
+      source (fixes the literal-`\n` corruption class).
+- [ ] Config loading, lint/compile tool, MBPP/EvalPlus — queued (P16/P20).
+
+---
+
+> Governing rule (unchanged): a change is "done" only when the benchmark
+> (`python cli.py report` / `humaneval_history.jsonl`) shows the number moved. If it
+> doesn't move, we revert.

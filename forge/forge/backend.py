@@ -34,6 +34,7 @@ class GenConfig:
     num_ctx: int = 8192          # context window; raise if your model + VRAM allow
     max_tokens: int = 2048
     stop: list[str] = field(default_factory=list)
+    json_mode: bool = False      # force valid-JSON output (fixes escaping/parsing)
 
 
 class Backend:
@@ -59,7 +60,7 @@ class OllamaBackend(Backend):
         self.name = f"ollama:{model}"
 
     def _payload(self, messages: list[Message], cfg: GenConfig, stream: bool) -> dict[str, Any]:
-        return {
+        payload: dict[str, Any] = {
             "model": self.model,
             "stream": stream,
             "messages": [{"role": m.role, "content": m.content} for m in messages],
@@ -71,6 +72,9 @@ class OllamaBackend(Backend):
                 "stop": cfg.stop or None,
             },
         }
+        if cfg.json_mode:
+            payload["format"] = "json"
+        return payload
 
     def chat(self, messages: list[Message], cfg: GenConfig) -> str:
         r = requests.post(

@@ -58,6 +58,10 @@ def main():
         from bench.harness import main as bench_main
         sys.argv = ["bench"] + (["--model", model] if model else [])
         bench_main()
+    elif args[0] == "humaneval":
+        from bench.humaneval import main as he_main
+        sys.argv = ["humaneval"] + args[1:] + (["--model", model] if model else [])
+        he_main()
     elif args[0] == "report":
         from bench.report import main as report_main
         report_main()

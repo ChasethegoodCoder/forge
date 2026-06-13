@@ -27,10 +27,17 @@ pip install -r requirements.txt
 ## Use
 ```bash
 python cli.py solve "Compute the 10th Fibonacci number and verify it."
-python cli.py chat            # interactive agent
-python cli.py bench           # run benchmarks, log to bench/results/history.jsonl
-python cli.py report          # see progress vs target over time
+python cli.py chat                       # interactive agent
+python cli.py bench                       # homemade quick suite -> history.jsonl
+python cli.py humaneval --limit 20        # STANDARD benchmark vs Sonnet 4.6 (92%)
+python cli.py humaneval --limit 164 --k 1 # full official HumanEval run
+python cli.py report                      # progress vs target over time
 ```
+
+**HumanEval is the real yardstick:** it's a published benchmark whose Sonnet 4.6
+score (~92% pass@1) is known, so the gap Forge reports is comparable to the actual
+target. Scoring is file-based (the agent writes `solution.py`; the official test runs
+against it) — no fragile output parsing.
 
 ## Layout
 ```

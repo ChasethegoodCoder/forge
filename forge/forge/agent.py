@@ -96,7 +96,8 @@ class Agent:
                  self_verify: bool = True):
         self.backend = backend
         self.max_steps = max_steps
-        self.cfg = cfg or GenConfig(temperature=0.1)  # low temp: deterministic code
+        # low temp: deterministic code; json_mode: force valid, properly-escaped actions
+        self.cfg = cfg or GenConfig(temperature=0.1, json_mode=True)
         self.auto_approve = auto_approve
         self.self_verify = self_verify
         toolkit.load_all()
