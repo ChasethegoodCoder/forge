@@ -152,13 +152,36 @@ def solve_once(agent, problem: dict) -> tuple[bool, str, str]:
     return ok, note, res.stopped_reason
 
 
-def run(model: str | None, limit: int, k: int, max_steps: int, critic: bool = False) -> dict:
+RAW_SYS = ("You are an expert Python programmer. Complete the function below. "
+           "Reply with ONLY the complete function — necessary imports, the exact "
+           "signature, and a correct body — inside one ```python code block. No prose.")
+
+
+def solve_raw(backend, problem: dict) -> tuple[bool, str, str]:
+    """Standard single-pass HumanEval: one generation, no tools/loop. Fast."""
+    import re
+    from forge.backend import Message
+    entry = problem["entry_point"]
+    out = backend.chat([Message("system", RAW_SYS), Message("user", problem["prompt"])],
+                       GenConfig(temperature=0.1))
+    m = re.search(r"```(?:python)?\s*(.*?)```", out, re.DOTALL)
+    block = m.group(1) if m else out
+    code = _clean_source([block, problem["prompt"] + "\n" + block], entry)
+    if not code:
+        return False, "no compilable solution", "raw"
+    ok, note = _run_test(code, problem["test"], entry)
+    return ok, note, "raw"
+
+
+def run(model: str | None, limit: int, k: int, max_steps: int, mode: str = "agent") -> dict:
     backend_obj = get_backend(model)
-    if critic:
+    agent = None
+    if mode == "critic":
         from forge.orchestrator import Orchestrator
         agent = Orchestrator(backend_obj, max_steps=max_steps)
-    else:
+    elif mode == "agent":
         agent = Agent(backend_obj, max_steps=max_steps)
+    # mode == "raw" uses backend_obj directly (no agent)
     problems = load_problems(limit)
     started = time.time()
     rows = []
@@ -167,7 +190,10 @@ def run(model: str | None, limit: int, k: int, max_steps: int, critic: bool = Fa
         last_note = ""
         t0 = time.time()
         for _ in range(k):
-            ok, note, _stop = solve_once(agent, prob)
+            if mode == "raw":
+                ok, note, _stop = solve_raw(backend_obj, prob)
+            else:
+                ok, note, _stop = solve_once(agent, prob)
             passes += int(ok)
             last_note = note
             if ok and k == 1:
@@ -186,7 +212,7 @@ def run(model: str | None, limit: int, k: int, max_steps: int, critic: bool = Fa
     record = {
         "ts": datetime.now(timezone.utc).isoformat(),
         "bench": "HumanEval", "model": backend_obj.name,
-        "mode": "critic" if critic else "single",
+        "mode": mode,
         "n": n, "k": k, "pass1": round(pass1, 4), "passk": round(passk, 4),
         "target_pass1": TARGET_PASS1,
         "gap_points": round((TARGET_PASS1 - pass1) * 100, 1),
@@ -203,12 +229,12 @@ def main():
     ap.add_argument("--limit", type=int, default=20)
     ap.add_argument("--k", type=int, default=1)
     ap.add_argument("--max-steps", type=int, default=10)
-    ap.add_argument("--critic", action="store_true", help="use planner/coder/critic orchestrator")
+    ap.add_argument("--mode", choices=["raw", "agent", "critic"], default="agent",
+                    help="raw=single-pass (fast), agent=full harness, critic=orchestrator")
     a = ap.parse_args()
 
-    mode = "critic" if a.critic else "single"
-    print(f"\n=== HumanEval — model={a.model or 'default'} limit={a.limit} k={a.k} mode={mode} ===")
-    rec = run(a.model, a.limit, a.k, a.max_steps, critic=a.critic)
+    print(f"\n=== HumanEval — model={a.model or 'default'} limit={a.limit} k={a.k} mode={a.mode} ===")
+    rec = run(a.model, a.limit, a.k, a.max_steps, mode=a.mode)
     print("\n--- RESULT ---")
     print(f"model:    {rec['model']}")
     print(f"pass@1:   {rec['pass1']*100:.1f}%   (n={rec['n']}, {rec['elapsed_s']}s)")
