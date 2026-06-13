@@ -115,5 +115,9 @@ class OllamaBackend(Backend):
 
 
 def get_backend(model: str | None = None) -> Backend:
-    """Factory. Reads config later; for now returns local Ollama."""
-    return OllamaBackend(model=model or "qwen2.5:7b-instruct")
+    """Factory. Defaults come from config/forge.yaml (engine.model / engine.host)."""
+    from .config import get
+    return OllamaBackend(
+        model=model or get("engine.model", "qwen2.5:7b-instruct"),
+        host=get("engine.host", "http://localhost:11434"),
+    )

@@ -36,7 +36,13 @@ Every item you listed, mapped to a phase and its current status.
 | 23 | Autonomous improvement suggestions | [~] | P10 | manual `PHASE9_IMPROVEMENT_QUEUE.md`; auto TODO |
 | 24 | Human-in-the-loop review | [~] | P12 | you approve via git; no formal gate yet |
 
-**Tally: 9 done · 8 partial · 7 not started.**
+**Tally (updated this iteration): 12 done · 7 partial · 5 not started** — up from
+9/8/7. Newly DONE: self-critique (#12), memory (#17, semantic), tool integration
+(#18, +web+edit/grep/glob), eval auto-scoring hardened (#7). Newly PARTIAL→progressed:
+agent system (#16, coder+critic), config/observability.
+
+Remaining NOT STARTED (5): dataset factory (#10), data accumulation (#14),
+fine-tuning (#15), continuous retraining (#21), research mode (#22).
 
 ---
 
@@ -190,11 +196,11 @@ See `docs/FORGE_VS_CLAUDE.md` for which gaps are *harness* (buildable) vs *weigh
   (ask/escalate when unsure).
 - Owner: F.
 
-### Phase 20 — Observability & DX  ⬜
-- **Why:** you can't improve what you can't see.
-- **Need:** structured run traces (every step/tool/observation saved), a `forge inspect`
-  command to replay a run, a tiny HTML dashboard over `history.jsonl`, and config
-  loading (`config/forge.yaml` is written but **not yet read** by the code — real TODO).
+### Phase 20 — Observability & DX  🟡
+- **Done:** run traces (`forge/trace.py` — every step/tool/observation saved to
+  `bench/results/traces/`); `python cli.py inspect` replays the last run; **config
+  loading fixed** (`forge/config.py` reads `config/forge.yaml`, drives `get_backend`).
+- **Need:** tiny HTML dashboard over `history.jsonl`; per-step timing.
 - Owner: F.
 
 ### Phase 21 — Packaging & Integration  ⬜

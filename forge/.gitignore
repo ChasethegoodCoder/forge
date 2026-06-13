@@ -2,6 +2,8 @@ __pycache__/
 *.pyc
 workspace/
 memory/store.json
+memory/vectors.json
+bench/results/traces/
 .venv/
 venv/
 *.gguf

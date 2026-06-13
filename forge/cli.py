@@ -3,8 +3,10 @@ cli.py — Forge entry point.
 
     python cli.py chat                 # interactive agent REPL
     python cli.py solve "task..."      # one-shot agent run (shows steps)
-    python cli.py bench                 # run the benchmark suite
+    python cli.py bench                 # run the homemade benchmark suite
+    python cli.py humaneval --limit 20  # standard HumanEval vs Sonnet 4.6
     python cli.py report                # print progress over time
+    python cli.py inspect               # replay the last solve's trace
 """
 from __future__ import annotations
 
@@ -35,11 +37,14 @@ def cmd_chat(model: str | None):
 
 
 def cmd_solve(task: str, model: str | None):
+    from forge import trace
     agent = Agent(get_backend(model))
     res = agent.run(task)
     for i, s in enumerate(res.steps, 1):
         print(f"[{i}] {s.action}({s.args}) -> {s.observation[:120]!r}")
     print(f"\nANSWER: {res.answer}")
+    path = trace.save(task, res)
+    print(f"\n(trace saved -> {path.name}; view with: python cli.py inspect)")
 
 
 def main():
@@ -65,6 +70,9 @@ def main():
     elif args[0] == "report":
         from bench.report import main as report_main
         report_main()
+    elif args[0] == "inspect":
+        from forge import trace
+        print(trace.render(trace.latest()))
     else:
         print(__doc__)
 
