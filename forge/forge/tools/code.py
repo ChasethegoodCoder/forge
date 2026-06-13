@@ -77,3 +77,34 @@ def grep(pattern: str, glob: str = "*") -> str:
 def glob_files(pattern: str) -> str:
     out = [str(p.relative_to(WORKSPACE)) for p in sorted(WORKSPACE.glob(pattern)) if p.is_file()]
     return "\n".join(out[:200]) or "(no files)"
+
+
+@tool(
+    description=(
+        "Run a Python snippet with the working directory set to a workspace subfolder, "
+        "so you can `import` and TEST the files in a multi-file project there. Use this "
+        "to verify your edits to a project actually work (run_python can't see project files)."
+    ),
+    parameters={
+        "dir": {"type": "string", "description": "project folder in workspace, e.g. 'repo-002'"},
+        "code": {"type": "string", "description": "Python to run (e.g. import and assert)"},
+        "timeout_s": {"type": "integer", "description": "max seconds (default 15)"},
+    },
+)
+def run_in_project(dir: str, code: str, timeout_s: int = 15) -> str:
+    import subprocess
+    import sys
+    base = _safe(dir)
+    if not base.is_dir():
+        return f"ERROR: not a directory in workspace: {dir}"
+    try:
+        proc = subprocess.run([sys.executable, "-B", "-c", code], cwd=str(base),
+                              capture_output=True, text=True, timeout=timeout_s)
+    except subprocess.TimeoutExpired:
+        return f"ERROR: timed out after {timeout_s}s"
+    out = (proc.stdout or "")[-3000:]
+    err = (proc.stderr or "")[-1500:]
+    res = f"exit={proc.returncode}\n--- stdout ---\n{out}"
+    if err.strip():
+        res += f"\n--- stderr ---\n{err}"
+    return res
