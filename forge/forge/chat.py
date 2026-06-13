@@ -35,10 +35,38 @@ _TASK_HINT = re.compile(
 
 
 class Conversation:
-    def __init__(self, backend: Backend, use_agent: bool = True, use_memory: bool = False):
+    def __init__(self, backend: Backend, use_agent: bool = True, use_memory: bool = False,
+                 remember: bool = True):
         self.backend = backend
         self.history: list[Message] = []
         self.agent = Agent(backend, use_memory=use_memory) if use_agent else None
+        self.remember = remember        # Phase E: persist + recall across sessions
+        self._mem = None
+
+    def _memory(self):
+        if self._mem is None:
+            from .semantic_memory import SemanticMemory
+            self._mem = SemanticMemory()
+        return self._mem
+
+    def _recall(self, msg: str) -> str:
+        """Pull relevant snippets from PAST sessions (semantic), for continuity."""
+        if not self.remember:
+            return ""
+        try:
+            hits = self._memory().search(msg, k=2, min_score=0.45)
+            return "\n".join(f"- {h['text'][:200]}" for h in hits)
+        except Exception:
+            return ""
+
+    def _store(self, msg: str, reply: str) -> None:
+        if not self.remember:
+            return
+        try:
+            self._memory().add(f"User said: {msg[:200]}\nForge replied: {reply[:300]}",
+                               kind="conversation")
+        except Exception:
+            pass
 
     def _route(self, msg: str) -> str:
         if self.agent is None:
@@ -54,7 +82,11 @@ class Conversation:
             return "chat"
 
     def _chat_reply(self, msg: str) -> str:
-        msgs = [Message("system", CHAT_SYS), *self.history[-10:], Message("user", msg)]
+        sys = CHAT_SYS
+        recalled = self._recall(msg)
+        if recalled:
+            sys += f"\n\nFrom earlier conversations (use if relevant):\n{recalled}"
+        msgs = [Message("system", sys), *self.history[-10:], Message("user", msg)]
         return self.backend.chat(msgs, GenConfig(temperature=0.6, max_tokens=600)).strip()
 
     def send(self, msg: str) -> tuple[str, str]:
@@ -70,4 +102,5 @@ class Conversation:
             reply = self._chat_reply(msg)
         self.history.append(Message("user", msg))
         self.history.append(Message("assistant", reply))
+        self._store(msg, reply)        # Phase E: remember across sessions
         return reply, mode
