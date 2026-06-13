@@ -6,7 +6,10 @@ engine:
   temperature: 0.2
   num_ctx: 8192
   vision_model: llama3.2-vision:11b    # best vision that fits 12GB (llava:7b fallback)
-  image_model: stabilityai/sd-turbo    # local asset generation (Stable Diffusion)
+  # image gen: sd-turbo (fast, ~2GB, safe on busy VRAM). For higher quality swap to:
+  #   stabilityai/sdxl-turbo  (better, ~7GB, needs ~8GB free VRAM)
+  #   stabilityai/stable-diffusion-xl-base-1.0  (best, slow, 20+ steps)
+  image_model: stabilityai/sd-turbo
   # Phase G escalation — when the local model fails a build step, hand THAT piece to a
   # bigger model. Uncomment + point at a rented vLLM box (or a bigger local model):
   # big_model: Qwen/Qwen2.5-72B-Instruct-AWQ

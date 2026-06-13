@@ -38,6 +38,20 @@ Legend: [x] done · [~] in progress · [ ] todo
 - [ ] Self-improvement flywheel (auto mine failures → retrain → re-measure)
 - [ ] Scale test: 14B-Q4
 
+## Current capabilities (multimodal, local, on 14B)
+- [x] Chat + code (auto-routing), works on REAL folders (`--project`)
+- [x] Multi-file project builder (plan → master each file → integrate → escalate)
+- [x] Vision input (`image`) — llama3.2-vision:11b
+- [x] Local asset generation (`asset`) — Stable Diffusion sd-turbo; SDXL optional
+- [x] Online asset download (`download_asset` tool) — Kenney/CC0 packs
+- [x] Asset strategy baked in: code-drawn for geometric, SD for art, download for packs
+- [x] Conversation memory across sessions (semantic recall)
+- [x] Clarifying questions (options + Other)
+- [x] Self-debug (targeted error context + completeness gate)
+- [x] Escalation hook (hard steps → bigger/rented model via `engine.big_model`)
+- [x] 15 tools; `help` lists all commands
+- [ ] Phase D (documents: create + search) · Phase F (UI — user designing)
+
 ## What YOU need to do
 **Nothing required.** The coder-model download runs in the background. If you ever
 want to drive it yourself: `cd forge && python cli.py bench` then `python cli.py report`.
