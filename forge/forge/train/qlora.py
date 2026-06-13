@@ -61,7 +61,7 @@ def train(cfg: dict):
                              bnb_4bit_use_double_quant=True)
     model = AutoModelForCausalLM.from_pretrained(
         cfg["base_model"], quantization_config=bnb, device_map="auto",
-        torch_dtype=torch.bfloat16)
+        dtype=torch.bfloat16)
     peft_cfg = LoraConfig(
         r=cfg["lora_r"], lora_alpha=cfg["lora_alpha"], lora_dropout=cfg["lora_dropout"],
         bias="none", task_type="CAUSAL_LM",
@@ -80,10 +80,11 @@ def train(cfg: dict):
         per_device_train_batch_size=cfg["batch_size"],
         gradient_accumulation_steps=cfg["grad_accum"],
         learning_rate=cfg["lr"], warmup_ratio=cfg["warmup_ratio"],
-        max_seq_length=cfg["max_seq_len"], logging_steps=5,
+        max_length=cfg["max_seq_len"], logging_steps=5,
         save_strategy="epoch", bf16=True, optim="paged_adamw_8bit",
         report_to="none")
-    trainer = SFTTrainer(model=model, args=args, train_dataset=ds, peft_config=peft_cfg)
+    trainer = SFTTrainer(model=model, args=args, train_dataset=ds,
+                         peft_config=peft_cfg, processing_class=tok)
     trainer.train()
     trainer.save_model(str(OUT))
     print(f"\nDone. Adapter -> {OUT}")
