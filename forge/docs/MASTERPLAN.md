@@ -73,9 +73,13 @@ You asked for conversation history.
 
 ## Progress
 - ✅ **Phase A** — Builder v2 (self-debug + integration) — built.
-- ✅ **Phase B** — real folder access via `--project <path>` (tools scoped to your files) — built.
-- ✅ **Phase C** — Skills + pygame scaffold (stub → near-complete game) — built.
-- ⬜ Phase D (documents) · E (conversation history) · F (UI — you're designing) · G (escalation — needs a rented model).
+- ✅ **Phase B** — real folder access via `--project <path>` — built.
+- ✅ **Phase C** — Skills + pygame scaffold — built.
+- ✅ **Phase E** — conversation history (semantic recall across sessions) — built.
+- ✅ **Phase G** — escalation hook (hard steps → bigger model when configured) — built.
+- ✅ **Bonus** — 14B default, vision input (llama3.2-vision:11b), local asset gen
+  (sd-turbo), clarifying questions, targeted bug-fixing + completeness gate.
+- ⬜ Remaining: **Phase D** (documents) · **Phase F** (UI — you're designing).
 
 ## Build order (recommended)
 1. **Phase A — Builder v2 + self-debug** (gets you running games).

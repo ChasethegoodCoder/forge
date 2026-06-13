@@ -66,6 +66,38 @@ class ProjectBuilder:
         err = (p.stderr or "").strip().splitlines()
         return False, "\n".join(err[-6:])
 
+    def _big_agent(self):
+        """Phase G: an Agent on a BIGGER model, if one is configured (engine.big_model
+        + big_host, e.g. a rented vLLM box). None if not configured -> no escalation."""
+        if hasattr(self, "_big"):
+            return self._big
+        from .config import get
+        from .backend import OllamaBackend, OpenAICompatBackend
+        bm = get("engine.big_model")
+        self._big = None
+        if bm:
+            host = get("engine.big_host", get("engine.host", "http://localhost:11434"))
+            kind = get("engine.big_backend", "ollama")
+            be = (OpenAICompatBackend(bm, host) if kind in ("openai", "vllm")
+                  else OllamaBackend(bm, host))
+            self._big = Agent(be, max_steps=12)
+        return self._big
+
+    def _escalate(self, project_dir: str, fname: str, task: str) -> bool:
+        """Hand the stuck file to the big model (the hard 10% the small model can't do)."""
+        big = self._big_agent()
+        if big is None:
+            self.on_progress(f"        (would escalate {fname} to a bigger model — set "
+                             f"engine.big_model in config to enable)")
+            return False
+        ok, err = self._verify(project_dir, fname)
+        ctx = self._error_context(project_dir, fname, err)
+        self.on_progress(f"        escalating {fname} to {big.backend.name}...")
+        big.run(f"Fix/complete `{project_dir}/{fname}` for: {task}\nCurrent problem:\n{err}\n"
+                f"{ctx}\nread_file it, edit_file the fix, verify with "
+                f"run_in_project('{project_dir}', 'import {fname[:-3]}').")
+        return self._verify(project_dir, fname)[0]
+
     @staticmethod
     def _error_context(project_dir: str, fname: str, err: str) -> str:
         """Pull the offending line(s) from the file with line numbers so the model can
@@ -127,6 +159,7 @@ class ProjectBuilder:
     def _build_on_scaffold(self, task: str, project_dir: str, skill) -> BuildResult:
         """Skill path: install a working scaffold, then have the model FILL IN the TODOs
         (the parts it can do) instead of inventing the whole thing (which it can't)."""
+        self._task = task
         proj = WORKSPACE / project_dir
         installed = skill.install(proj)
         entry = installed[0] if installed else "main.py"
@@ -188,7 +221,9 @@ class ProjectBuilder:
                 f"Make the SMALLEST possible edit_file change to fix exactly that line, then "
                 f"verify with run_in_project('{project_dir}', 'import {fname[:-3]}'). Do not "
                 f"rewrite the file.")
-        return self._verify(project_dir, fname)[0]
+        if self._verify(project_dir, fname)[0]:
+            return True
+        return self._escalate(project_dir, fname, getattr(self, "_task", ""))  # Phase G
 
     def plan(self, task: str) -> dict:
         raw = self.backend.chat(
@@ -201,6 +236,7 @@ class ProjectBuilder:
             return json.loads(m.group(0)) if m else {"entry": "main.py", "steps": []}
 
     def build(self, task: str, project_dir: str = "project") -> BuildResult:
+        self._task = task
         # Phase C: if a skill matches, start from its WORKING scaffold instead of blank.
         from .skills import best_match
         skill = best_match(task)

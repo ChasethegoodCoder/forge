@@ -7,6 +7,11 @@ engine:
   num_ctx: 8192
   vision_model: llama3.2-vision:11b    # best vision that fits 12GB (llava:7b fallback)
   image_model: stabilityai/sd-turbo    # local asset generation (Stable Diffusion)
+  # Phase G escalation — when the local model fails a build step, hand THAT piece to a
+  # bigger model. Uncomment + point at a rented vLLM box (or a bigger local model):
+  # big_model: Qwen/Qwen2.5-72B-Instruct-AWQ
+  # big_host: http://<rented-box>:8000
+  # big_backend: openai
 
 agent:
   max_steps: 8
